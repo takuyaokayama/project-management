@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 // ── GAS設定 ──
 // GASデプロイ後に発行されたウェブアプリのURLを設定してください
-const GAS_URL = "https://script.google.com/macros/s/AKfycbyGcNV1vOSO6htWKBoIQ-1EdkvKTGheNsD-GkZpHBwsUfZwjbJB4BN8bGMqL2PHUtKJ/exec";
+const GAS_URL = "aaaaaaaaaa";
 
 // ── GAS読み書きユーティリティ ──
 async function loadFromGAS() {
@@ -12,6 +12,35 @@ async function loadFromGAS() {
   const data = await res.json();
   if (data.error) throw new Error(data.error);
   return data; // { projects, clients }
+}
+
+async function uploadFileToGAS(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const base64Data = e.target.result.split(",")[1];
+        const res = await fetch(GAS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            action: "upload",
+            fileName: file.name,
+            mimeType: file.type || "application/octet-stream",
+            base64Data,
+          }),
+        });
+        if (!res.ok) throw new Error(`Upload error: ${res.status}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        resolve(data);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(new Error("File read error"));
+    reader.readAsDataURL(file);
+  });
 }
 
 async function saveToGAS(projects, clients) {
@@ -50,62 +79,22 @@ const STATUS_CONFIG = {
   "保留": { color: "#718096", bg: "rgba(113,128,150,0.15)" },
 };
 
-const PROJECTS_INIT = [
-  { id: 1, name: "アジア展開パネル拡大PJ", description: "東南アジア・南アジアを含む10カ国でのパネル調査拡大。新規クライアント獲得とサンプル品質向上が目標。", status: "進行中", owner: "Takuya", archived: false },
-  { id: 2, name: "AIインタビュー連携PJ", description: "AI面接SaaSとのパネル連携。Freeasy・ZINGYYとの3者統合により新たな調査手法を確立する。", status: "進行中", owner: "Takuya", archived: false },
-  { id: 3, name: "住宅・建材インサイトPJ", description: "住宅メーカー向けの多国間消費者インサイト調査。アジア6カ国の内装選好データを提供。", status: "完了", owner: "Semee", archived: false },
-];
+const POTENTIAL_STATUS_CONFIG = {
+  "未接触": { color: "#718096", bg: "rgba(113,128,150,0.15)" },
+  "コンタクト済み": { color: "#667EEA", bg: "rgba(102,126,234,0.15)" },
+  "提案済み": { color: "#F6AD55", bg: "rgba(246,173,85,0.15)" },
+  "交渉中": { color: "#00B5AD", bg: "rgba(0,181,173,0.15)" },
+  "アタック不要": { color: "#FC8181", bg: "rgba(252,129,129,0.15)" },
+};
 
-const CLIENTS_INIT = [
-  {
-    id: 1, projectId: 1, name: "株式会社サクラ", status: "進行中", owner: "Takuya", phase: "実査フェーズ",
-    lastUpdated: "2026-06-14", archived: false,
-    summary: "国内消費者パネル調査。10カ国展開に向けてサンプル設計中。",
-    mtgs: [
-      { date: "2026-06-14", title: "週次定例", attendees: ["Takuya", "Semee", "田中様"], content: "サンプルサイズの再検討。IR改善施策についてアライン。次回までにコスト試算を提出する。", actions: ["コスト試算作成 (Takuya, 6/17)", "サンプル設計書更新 (Semee, 6/18)"] },
-      { date: "2026-05-30", title: "キックオフMTG", attendees: ["Takuya", "田中様", "鈴木様"], content: "プロジェクト概要・スケジュール確認。調査対象は20-50代女性。", actions: ["提案書送付 (Takuya, 6/3)", "NDA締結 (6/5)"] },
-    ],
-    materials: [{ name: "提案書_v2.pptx", date: "2026-06-01", type: "提案" }, { name: "サンプル設計書.xlsx", date: "2026-06-10", type: "設計" }, { name: "NDA_締結済.pdf", date: "2026-06-05", type: "契約" }],
-    todos: [{ text: "コスト試算作成", due: "2026-06-17", done: false, owner: "Takuya" }, { text: "サンプル設計書更新", due: "2026-06-18", done: false, owner: "Semee" }, { text: "NDA締結", due: "2026-06-05", done: true, owner: "Takuya" }],
-    info: { industry: "製造業", country: "日本", contacts: [{ name: "田中 健一", title: "部長", email: "tanaka@sakura.co.jp" }] },
-  },
-  {
-    id: 2, projectId: 1, name: "Bolt Insight", status: "提案中", owner: "Takuya", phase: "提案フェーズ",
-    lastUpdated: "2026-06-12", archived: false,
-    summary: "HNWI層のリクルーティング実現可能性についてTong Tong Gohと交渉中。",
-    mtgs: [{ date: "2026-06-10", title: "要件ヒアリング", attendees: ["Takuya", "Tong Tong Goh"], content: "HNWI定義の確認。年収3000万円以上、資産1億円以上が条件。", actions: ["実現可能性調査 (Takuya, 6/15)"] }],
-    materials: [{ name: "HNWI_feasibility_draft.docx", date: "2026-06-12", type: "調査" }],
-    todos: [{ text: "HNWI実現可能性の回答メール送付", due: "2026-06-16", done: false, owner: "Takuya" }],
-    info: { industry: "リサーチ", country: "シンガポール", contacts: [{ name: "Tong Tong Goh", title: "Director", email: "tong@boltinsight.com" }] },
-  },
-  {
-    id: 3, projectId: 2, name: "Kantar Japan", status: "進行中", owner: "Takuya", phase: "契約フェーズ",
-    lastUpdated: "2026-06-11", archived: false,
-    summary: "MSA交渉ほぼ完了。支払い条件60→45日、賠償上限の対称化を合意済み。",
-    mtgs: [{ date: "2026-06-08", title: "契約条件最終調整", attendees: ["Takuya", "Kantar法務"], content: "支払い条件・賠償上限について合意。最低手数料の文言を修正中。", actions: ["MSA最終版送付 (Kantar, 6/18)"] }],
-    materials: [{ name: "MSA_redlined_v3.docx", date: "2026-06-11", type: "契約" }],
-    todos: [{ text: "MSA最終版レビュー", due: "2026-06-20", done: false, owner: "Takuya" }, { text: "支払い条件確認", due: "2026-06-08", done: true, owner: "Takuya" }],
-    info: { industry: "リサーチ", country: "日本", contacts: [{ name: "山田 花子", title: "法務部長", email: "yamada@kantar.com" }] },
-  },
-  {
-    id: 4, projectId: 2, name: "ZINGYY", status: "進行中", owner: "Takuya", phase: "技術統合フェーズ",
-    lastUpdated: "2026-06-10", archived: false,
-    summary: "AI面接連携。Freeasy/Abridge・dataSpring・ZINGYYの3者統合を進行中。",
-    mtgs: [{ date: "2026-06-05", title: "技術アライメントMTG", attendees: ["Takuya", "Jamers", "ZINGYY Tech"], content: "7ステップAPIフロー確認。認証方式・Webhook仕様を合意。", actions: ["API仕様書ドラフト (Jamers, 6/12)", "テスト環境準備 (ZINGYY, 6/15)"] }],
-    materials: [{ name: "API_flow_diagram_v2.pdf", date: "2026-06-06", type: "技術" }, { name: "3者連携提案書.pptx", date: "2026-05-28", type: "提案" }],
-    todos: [{ text: "API仕様書最終確認", due: "2026-06-19", done: false, owner: "Jamers" }, { text: "テスト環境確認", due: "2026-06-18", done: false, owner: "Takuya" }],
-    info: { industry: "AI/SaaS", country: "日本", contacts: [{ name: "山本 太郎", title: "CTO", email: "yamamoto@zingyy.com" }] },
-  },
-  {
-    id: 5, projectId: 3, name: "Sumitomo Forestry", status: "完了", owner: "Semee", phase: "納品済み",
-    lastUpdated: "2026-05-20", archived: false,
-    summary: "6カ国・3000名の木材内装選好調査。全納品完了。",
-    mtgs: [{ date: "2026-05-15", title: "納品報告会", attendees: ["Takuya", "Semee", "住友林業様"], content: "全国データ・インサイトレポート納品。ベトナムの高コンバージョン率が特に高評価。", actions: ["請求書送付済み"] }],
-    materials: [{ name: "最終報告書_6カ国.pptx", date: "2026-05-18", type: "報告" }, { name: "rawdata_all_countries.xlsx", date: "2026-05-18", type: "データ" }],
-    todos: [{ text: "請求書送付", due: "2026-05-20", done: true, owner: "Takuya" }],
-    info: { industry: "建設/製造", country: "日本", contacts: [{ name: "佐藤 次郎", title: "調達部長", email: "sato@sumitomo-forestry.co.jp" }] },
-  },
-];
+const PRIORITY_CONFIG = {
+  "高": { color: "#FC8181" },
+  "中": { color: "#F6AD55" },
+  "低": { color: "#718096" },
+};
+
+const PROJECTS_INIT = [];
+const CLIENTS_INIT = [];
 
 const TYPE_ICON = { "提案": "📋", "設計": "📐", "契約": "📝", "調査": "🔍", "技術": "⚙️", "報告": "📊", "データ": "📦" };
 
@@ -502,7 +491,7 @@ function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClie
                 <input value={newClient.phase} onChange={e => setNewClient(d => ({ ...d, phase: e.target.value }))} placeholder="例: 提案フェーズ" style={inputStyle()} />
               </div>
               <div>
-                <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>業界</div>
+                <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>URL</div>
                 <input value={newClient.info.industry} onChange={e => setNewClient(d => ({ ...d, info: { ...d.info, industry: e.target.value } }))} style={inputStyle()} />
               </div>
               <div>
@@ -543,6 +532,140 @@ function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClie
           )}
         </div>
       )}
+
+      {/* ポテンシャルクライアント */}
+      <PotentialSection
+        projectId={project.id}
+        potentials={clients.filter(c => c.projectId === project.id && c.isPotential && !c.archived)}
+        onAdd={data => onAddClient({ ...data, projectId: project.id, isPotential: true })}
+        onUpdate={onUpdateClient}
+        onPromote={id => onUpdateClient(id, { isPotential: false })}
+        onArchive={onArchiveClient}
+      />
+    </div>
+  );
+}
+
+// ── ポテンシャルクライアント ──
+function PotentialBadge({ status }) {
+  const cfg = POTENTIAL_STATUS_CONFIG[status] || POTENTIAL_STATUS_CONFIG["未接触"];
+  return <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 4, padding: "2px 10px", fontSize: 12, fontWeight: 600 }}>{status}</span>;
+}
+
+function PotentialForm({ initial, onSave, onCancel, saveLabel = "追加" }) {
+  const [name, setName] = useState(initial?.name || "");
+  const [approachStatus, setApproachStatus] = useState(initial?.approachStatus || "未接触");
+  const [priority, setPriority] = useState(initial?.priority || "中");
+  const [approachDate, setApproachDate] = useState(initial?.approachDate || "");
+  const [owner, setOwner] = useState(initial?.owner || OWNERS[0]);
+  const [summary, setSummary] = useState(initial?.summary || "");
+  const [country, setCountry] = useState(initial?.info?.country || "");
+  const [url, setUrl] = useState(initial?.info?.industry || "");
+
+  function handleSave() {
+    if (!name.trim()) return;
+    onSave({ name: name.trim(), approachStatus, priority, approachDate, owner, summary, isPotential: true, phase: approachStatus, status: "提案中", info: { industry: url, country, contacts: initial?.info?.contacts || [] }, mtgs: initial?.mtgs || [], materials: initial?.materials || [], todos: initial?.todos || [] });
+  }
+
+  return (
+    <Card style={{ padding: "18px 20px", border: `1px solid ${COLORS.primary}` }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>会社名 *</div>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="例: 株式会社〇〇" style={inputStyle()} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>担当者</div>
+            <select value={owner} onChange={e => setOwner(e.target.value)} style={inputStyle()}>
+              {OWNERS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>アプローチ状況</div>
+            <select value={approachStatus} onChange={e => setApproachStatus(e.target.value)} style={inputStyle()}>
+              {Object.keys(POTENTIAL_STATUS_CONFIG).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>優先度</div>
+            <select value={priority} onChange={e => setPriority(e.target.value)} style={inputStyle()}>
+              {Object.keys(PRIORITY_CONFIG).map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>アプローチ予定日</div>
+            <DatePicker value={approachDate} onChange={setApproachDate} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>国</div>
+            <input value={country} onChange={e => setCountry(e.target.value)} style={inputStyle()} />
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>URL</div>
+          <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..." style={inputStyle()} />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>メモ</div>
+          <textarea value={summary} onChange={e => setSummary(e.target.value)} rows={2} style={inputStyle({ resize: "vertical" })} />
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer", color: COLORS.textLight, fontSize: 13 }}>キャンセル</button>
+          <button onClick={handleSave} style={{ background: COLORS.primary, border: "none", borderRadius: 6, padding: "5px 14px", cursor: "pointer", color: "#0F1117", fontSize: 13, fontWeight: 700 }}>{saveLabel}</button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function PotentialSection({ projectId, potentials, onAdd, onUpdate, onPromote, onArchive }) {
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div style={{ marginTop: 32 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <button onClick={() => setOpen(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.textLight, fontSize: 13, display: "flex", alignItems: "center", gap: 6, padding: 0 }}>
+          <span>{open ? "▼" : "▶"}</span>
+          <span style={{ fontWeight: 700, color: COLORS.text }}>ポテンシャルクライアント</span>
+          <span style={{ fontSize: 12, color: COLORS.textLight }}>({potentials.length})</span>
+        </button>
+      </div>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {potentials.map(p => (
+            editingId === p.id
+              ? <PotentialForm key={p.id} initial={p} saveLabel="保存" onSave={data => { onUpdate(p.id, data); setEditingId(null); }} onCancel={() => setEditingId(null)} />
+              : (
+                <Card key={p.id} style={{ padding: "14px 18px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ flex: "0 0 160px" }}>
+                      <div style={{ fontWeight: 700, color: COLORS.text, fontSize: 14 }}>{p.name}</div>
+                      {p.info?.country && <div style={{ fontSize: 12, color: COLORS.textLight }}>{p.info.country}</div>}
+                    </div>
+                    <PotentialBadge status={p.approachStatus || "未接触"} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: PRIORITY_CONFIG[p.priority]?.color || COLORS.textLight }}>
+                      {p.priority || "中"}優先
+                    </span>
+                    {p.approachDate && <span style={{ fontSize: 12, color: COLORS.textLight }}>予定: {p.approachDate}</span>}
+                    <div style={{ flex: 1 }} />
+                    <Avatar name={p.owner || "?"} />
+                    <button onClick={() => setEditingId(p.id)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: COLORS.textLight, fontSize: 12 }}>編集</button>
+                    <button onClick={() => { if (window.confirm(`「${p.name}」をクライアントに昇格しますか？`)) onPromote(p.id); }} style={{ background: "none", border: `1px solid ${COLORS.primary}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: COLORS.primary, fontSize: 12 }}>クライアントに昇格</button>
+                    <button onClick={() => { if (window.confirm(`「${p.name}」をアーカイブしますか？`)) onArchive(p.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.textLight, fontSize: 16, padding: "0 4px" }}>🗑</button>
+                  </div>
+                  {p.summary && <div style={{ fontSize: 13, color: COLORS.textLight, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${COLORS.border}` }}>{p.summary}</div>}
+                </Card>
+              )
+          ))}
+          {showForm
+            ? <PotentialForm onSave={data => { onAdd(data); setShowForm(false); }} onCancel={() => setShowForm(false)} />
+            : <button onClick={() => setShowForm(true)} style={{ background: "none", border: `1px dashed ${COLORS.border}`, borderRadius: 8, padding: "10px", cursor: "pointer", color: COLORS.textLight, fontSize: 13, width: "100%" }}>+ ポテンシャルクライアントを追加</button>
+          }
+        </div>
+      )}
     </div>
   );
 }
@@ -556,6 +679,135 @@ function inputStyle(extra = {}) {
     padding: "7px 10px", fontSize: 13, color: COLORS.text, outline: "none", width: "100%",
     boxSizing: "border-box", ...extra,
   };
+}
+
+function dateInputStyle(extra = {}) {
+  return {
+    background: "#0F1117", border: `1px solid ${COLORS.border}`, borderRadius: 6,
+    padding: "7px 10px", fontSize: 13, color: COLORS.text, outline: "none", width: "100%",
+    boxSizing: "border-box",
+    colorScheme: "dark",
+    ...extra,
+  };
+}
+
+// ── カスタム日付ピッカー ──
+function DatePicker({ value, onChange, placeholder = "YYYY-MM-DD" }) {
+  const [text, setText] = useState(value || "");
+  const [showCal, setShowCal] = useState(false);
+  const [calYear, setCalYear] = useState(() => {
+    const d = value ? new Date(value) : new Date();
+    return d.getFullYear();
+  });
+  const [calMonth, setCalMonth] = useState(() => {
+    const d = value ? new Date(value) : new Date();
+    return d.getMonth();
+  });
+  const ref = useRef(null);
+
+  // 外側クリックで閉じる
+  useEffect(() => {
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setShowCal(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // 親のvalue変化に追従
+  useEffect(() => { setText(value || ""); }, [value]);
+
+  function handleTextChange(e) {
+    const v = e.target.value;
+    setText(v);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      onChange(v);
+      const d = new Date(v);
+      setCalYear(d.getFullYear());
+      setCalMonth(d.getMonth());
+    } else if (v === "") {
+      onChange("");
+    }
+  }
+
+  function handleDayClick(day) {
+    const m = String(calMonth + 1).padStart(2, "0");
+    const d = String(day).padStart(2, "0");
+    const dateStr = `${calYear}-${m}-${d}`;
+    setText(dateStr);
+    onChange(dateStr);
+    setShowCal(false);
+  }
+
+  function getDaysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+  function getFirstDayOfWeek(y, m) { return new Date(y, m, 1).getDay(); }
+
+  const days = getDaysInMonth(calYear, calMonth);
+  const firstDay = getFirstDayOfWeek(calYear, calMonth);
+  const selectedDay = value && new Date(value).getFullYear() === calYear && new Date(value).getMonth() === calMonth
+    ? new Date(value).getDate() : null;
+  const todayDate = new Date();
+  const isToday = (d) => todayDate.getFullYear() === calYear && todayDate.getMonth() === calMonth && todayDate.getDate() === d;
+
+  const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+  const MONTHS = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+
+  return (
+    <div ref={ref} style={{ position: "relative", width: "100%" }}>
+      <input
+        value={text}
+        onChange={handleTextChange}
+        onFocus={() => setShowCal(true)}
+        placeholder={placeholder}
+        style={inputStyle()}
+      />
+      {showCal && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 999,
+          background: COLORS.surface, border: `1px solid ${COLORS.border}`,
+          borderRadius: 10, padding: "12px", width: 240, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+        }}>
+          {/* ヘッダー */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); } else setCalMonth(m => m - 1); }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.textLight, fontSize: 16, padding: "0 6px" }}>‹</button>
+            <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{calYear}年 {MONTHS[calMonth]}</span>
+            <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); } else setCalMonth(m => m + 1); }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.textLight, fontSize: 16, padding: "0 6px" }}>›</button>
+          </div>
+          {/* 曜日ヘッダー */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 4 }}>
+            {WEEKDAYS.map((w, i) => (
+              <div key={w} style={{ textAlign: "center", fontSize: 11, color: i === 0 ? "#FC8181" : i === 6 ? "#667EEA" : COLORS.textLight, padding: "2px 0" }}>{w}</div>
+            ))}
+          </div>
+          {/* 日付グリッド */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+            {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
+            {Array.from({ length: days }).map((_, i) => {
+              const d = i + 1;
+              const isSelected = d === selectedDay;
+              const isTod = isToday(d);
+              return (
+                <button key={d} onClick={() => handleDayClick(d)} style={{
+                  background: isSelected ? COLORS.primary : "none",
+                  border: isTod && !isSelected ? `1px solid ${COLORS.primary}` : "1px solid transparent",
+                  borderRadius: 6, padding: "4px 0", cursor: "pointer", textAlign: "center",
+                  fontSize: 12, color: isSelected ? "#0F1117" : COLORS.text,
+                  fontWeight: isSelected || isTod ? 700 : 400,
+                }}>{d}</button>
+              );
+            })}
+          </div>
+          {/* クリアボタン */}
+          <div style={{ marginTop: 8, textAlign: "right" }}>
+            <button onClick={() => { setText(""); onChange(""); setShowCal(false); }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.textLight, fontSize: 12 }}>クリア</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function today() { return new Date().toISOString().slice(0, 10); }
@@ -613,7 +865,7 @@ function MaterialCard({ material, onSave, onDelete }) {
             </div>
             <div>
               <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>日付</div>
-              <input type="date" value={draft.date || ""} onChange={e => setDraft(d => ({ ...d, date: e.target.value }))} style={inputStyle()} />
+              <DatePicker value={draft.date || ""} onChange={v => setDraft(d => ({ ...d, date: v }))} />
             </div>
             <div>
               <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>URL / Driveリンク</div>
@@ -686,7 +938,7 @@ function TodoCard({ todo, todoIndex, clientTodos, onToggle, onSave, onSetNextAct
             </div>
             <div>
               <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>期限</div>
-              <input type="date" value={draft.due || ""} onChange={e => setDraft(d => ({ ...d, due: e.target.value }))} style={inputStyle()} />
+              <DatePicker value={draft.due || ""} onChange={v => setDraft(d => ({ ...d, due: v }))} />
             </div>
           </div>
           <div>
@@ -746,6 +998,27 @@ function AddMaterialForm({ onAdd, onCancel }) {
   const [url, setUrl] = useState("");
   const [memo, setMemo] = useState("");
   const [date, setDate] = useState(today());
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const gasReady = GAS_URL !== "aaaaaaaaaa";
+
+  async function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setName(file.name);
+    if (!gasReady) { setUploadError("GAS未設定のためアップロードできません"); return; }
+    setUploading(true);
+    setUploadError("");
+    try {
+      const result = await uploadFileToGAS(file);
+      setUrl(result.viewUrl);
+      setUploadError("");
+    } catch (err) {
+      setUploadError(`アップロード失敗: ${err.message}`);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   function handleSubmit() {
     if (!name.trim()) return;
@@ -756,6 +1029,18 @@ function AddMaterialForm({ onAdd, onCancel }) {
     <Card style={{ padding: "18px 20px", border: `1px solid ${COLORS.primary}` }}>
       <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.primary, marginBottom: 14 }}>資料を追加</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {/* ファイルアップロード */}
+        <div style={{ background: COLORS.surface, borderRadius: 8, padding: "12px 14px", border: `1px dashed ${COLORS.border}` }}>
+          <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 8 }}>ファイルをアップロード（Google Driveに保存）</div>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, color: COLORS.text }}>
+            <span>📎</span>
+            <span>{uploading ? "アップロード中..." : "ファイルを選択"}</span>
+            <input type="file" onChange={handleFileSelect} style={{ display: "none" }} disabled={uploading} />
+          </label>
+          {uploadError && <div style={{ fontSize: 12, color: COLORS.danger, marginTop: 6 }}>{uploadError}</div>}
+          {url && !uploadError && <div style={{ fontSize: 12, color: COLORS.success, marginTop: 6 }}>✓ アップロード完了</div>}
+        </div>
+
         <div>
           <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>ファイル名・タイトル *</div>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="例: 提案書_v3.pptx" style={inputStyle()} />
@@ -769,10 +1054,10 @@ function AddMaterialForm({ onAdd, onCancel }) {
           </div>
           <div>
             <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>日付</div>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle()} />
+            <DatePicker value={date} onChange={setDate} />
           </div>
           <div>
-            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>URL / Driveリンク</div>
+            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>URL（手動入力も可）</div>
             <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..." style={inputStyle()} />
           </div>
         </div>
@@ -782,7 +1067,7 @@ function AddMaterialForm({ onAdd, onCancel }) {
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
           <button onClick={onCancel} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "6px 14px", cursor: "pointer", color: COLORS.textLight, fontSize: 13 }}>キャンセル</button>
-          <button onClick={handleSubmit} style={{ background: COLORS.primary, border: "none", borderRadius: 6, padding: "6px 16px", cursor: "pointer", color: "#0F1117", fontSize: 13, fontWeight: 700 }}>追加</button>
+          <button onClick={handleSubmit} disabled={uploading} style={{ background: uploading ? COLORS.border : COLORS.primary, border: "none", borderRadius: 6, padding: "6px 16px", cursor: uploading ? "not-allowed" : "pointer", color: "#0F1117", fontSize: 13, fontWeight: 700 }}>追加</button>
         </div>
       </div>
     </Card>
@@ -817,7 +1102,7 @@ function AddTodoForm({ onAdd, onCancel }) {
           </div>
           <div>
             <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>期限</div>
-            <input type="date" value={due} onChange={e => setDue(e.target.value)} style={inputStyle()} />
+            <DatePicker value={due} onChange={setDue} />
           </div>
         </div>
         <div>
@@ -894,7 +1179,7 @@ function MtgForm({ initial, onSave, onCancel, saveLabel = "追加" }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 10 }}>
           <div>
             <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>日付</div>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle()} />
+            <DatePicker value={date} onChange={setDate} />
           </div>
           <div>
             <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>タイトル *</div>
@@ -1071,7 +1356,7 @@ function InfoTab({ client, onSave }) {
             { label: "フェーズ", key: "phase", type: "text" },
             { label: "ステータス", key: "status", type: "select", options: Object.keys(STATUS_CONFIG) },
             { label: "担当者（自社）", key: "owner", type: "select", options: OWNERS },
-            { label: "業界", key: "industry", type: "text" },
+            { label: "URL", key: "industry", type: "text" },
             { label: "国", key: "country", type: "text" },
           ].map(f => (
             <div key={f.key}>
@@ -1118,7 +1403,7 @@ function InfoTab({ client, onSave }) {
           { label: "フェーズ", value: client.phase },
           { label: "ステータス", value: <Badge status={client.status} /> },
           { label: "担当者（自社）", value: client.owner },
-          { label: "業界", value: client.info.industry },
+          { label: "URL", value: client.info.industry },
           { label: "国", value: client.info.country },
         ].map(f => (
           <div key={f.label}>
@@ -1192,9 +1477,6 @@ function ClientDetail({ client, project, onBackToProject, onBackToTop, onArchive
           { label: project.name, onClick: onBackToProject },
           { label: client.name },
         ]} />
-        <div style={{ marginLeft: "auto" }}>
-          <ArchiveButton onArchive={onArchive} label="このクライアントをアーカイブ" />
-        </div>
       </div>
 
       <div style={{ marginBottom: 20 }}>
@@ -1312,8 +1594,9 @@ export default function App() {
   const [projects, setProjects] = useState(PROJECTS_INIT);
   const [clients, setClients] = useState(CLIENTS_INIT);
   const [view, setView] = useState("projects");
-  const nextProjectId = useRef(Math.max(...PROJECTS_INIT.map(p => p.id)) + 1);
-  const nextClientId = useRef(Math.max(...CLIENTS_INIT.map(c => c.id)) + 1);
+  const [isLoading, setIsLoading] = useState(true);
+  const nextProjectId = useRef(1);
+  const nextClientId = useRef(1);
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedClient, setSelectedClient] = useState(null);
   const [showArchive, setShowArchive] = useState(false);
@@ -1326,7 +1609,7 @@ export default function App() {
 
   // 起動時にGASからデータ読み込み
   useEffect(() => {
-    if (!gasEnabled) return;
+    if (!gasEnabled) { setIsLoading(false); return; }
     setSyncStatus("loading");
     loadFromGAS()
       .then(({ projects: p, clients: c }) => {
@@ -1341,7 +1624,7 @@ export default function App() {
         setSyncStatus("saved");
       })
       .catch(() => setSyncStatus("error"))
-      .finally(() => { isFirstLoad.current = false; });
+      .finally(() => { isFirstLoad.current = false; setIsLoading(false); });
   }, []);
 
   // データ変更時にdebounce（1秒）して自動保存
@@ -1489,7 +1772,15 @@ export default function App() {
   }
 
   return (
-    <div style={{ fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
+    <div style={{ fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, margin: 0, padding: 0 }}>
+      {isLoading && (
+        <div style={{ position: "fixed", inset: 0, background: COLORS.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, gap: 16 }}>
+          <div style={{ width: 48, height: 48, background: COLORS.primary, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ color: "#0F1117", fontSize: 22, fontWeight: 700 }}>P</span>
+          </div>
+          <div style={{ fontSize: 14, color: COLORS.textLight }}>読み込み中...</div>
+        </div>
+      )}
       {/* Nav */}
       <div style={{ background: COLORS.surface, borderBottom: `1px solid ${COLORS.border}`, padding: "0 32px", display: "flex", alignItems: "center", height: 56, gap: 16, position: "sticky", top: 0, zIndex: 100 }}>
         <div onClick={goToTop} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
