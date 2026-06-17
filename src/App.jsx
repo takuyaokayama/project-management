@@ -1900,16 +1900,29 @@ function MyTodoSection({ clients, projects, members, currentMember, onChangeMemb
   const now = new Date();
   const oneWeekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
+  function handleMemberClick(m) {
+    if (currentMember === m && open) {
+      // 同じメンバーをもう一度クリックで折りたたむ
+      setOpen(false);
+      onChangeMember(null);
+    } else {
+      onChangeMember(m);
+      setOpen(true);
+    }
+  }
+
   const myTodos = [];
-  clients.filter(c => !c.archived && !c.isPotential).forEach(client => {
-    const project = projects.find(p => p.id === client.projectId);
-    (client.todos || []).filter(t => !t.done).forEach(todo => {
-      const owners = todo.owners || (todo.owner ? [todo.owner] : []);
-      if (owners.includes(currentMember)) {
-        myTodos.push({ todo, client, project });
-      }
+  if (currentMember) {
+    clients.filter(c => !c.archived && !c.isPotential).forEach(client => {
+      const project = projects.find(p => p.id === client.projectId);
+      (client.todos || []).filter(t => !t.done).forEach(todo => {
+        const owners = todo.owners || (todo.owner ? [todo.owner] : []);
+        if (owners.includes(currentMember)) {
+          myTodos.push({ todo, client, project });
+        }
+      });
     });
-  });
+  }
 
   const overdue = myTodos.filter(({ todo }) => todo.due && new Date(todo.due) < now)
     .sort((a, b) => new Date(a.todo.due) - new Date(b.todo.due));
@@ -1943,48 +1956,46 @@ function MyTodoSection({ clients, projects, members, currentMember, onChangeMemb
   return (
     <div style={{ borderBottom: `1px solid ${COLORS.border}`, background: COLORS.surface }}>
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 24px" }}>
-        {/* ヘッダー行（常時表示） */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, height: 44, cursor: "pointer" }} onClick={() => setOpen(v => !v)}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.textLight, letterSpacing: 0.5 }}>マイTODO</span>
-          {/* メンバー切り替え（クリック伝播を止める） */}
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>
+        {/* ヘッダー行 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, height: 44 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.textLight, letterSpacing: 0.5, flexShrink: 0 }}>マイTODO</span>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
             {members.map(m => (
-              <button key={m} onClick={() => onChangeMember(m)} style={{ display: "flex", alignItems: "center", gap: 4, background: currentMember === m ? COLORS.primaryLight : "none", border: `1px solid ${currentMember === m ? COLORS.primary : COLORS.border}`, borderRadius: 20, padding: "2px 10px 2px 6px", cursor: "pointer" }}>
+              <button key={m} onClick={() => handleMemberClick(m)} style={{ display: "flex", alignItems: "center", gap: 4, background: currentMember === m && open ? COLORS.primaryLight : "none", border: `1px solid ${currentMember === m && open ? COLORS.primary : COLORS.border}`, borderRadius: 20, padding: "2px 10px 2px 6px", cursor: "pointer", transition: "all 0.15s" }}>
                 <Avatar name={m} />
-                <span style={{ fontSize: 12, color: currentMember === m ? COLORS.primary : COLORS.textLight, fontWeight: currentMember === m ? 700 : 400 }}>{m}</span>
+                <span style={{ fontSize: 12, color: currentMember === m && open ? COLORS.primary : COLORS.textLight, fontWeight: currentMember === m && open ? 700 : 400 }}>{m}</span>
               </button>
             ))}
           </div>
-          {/* バッジ */}
-          {overdue.length > 0 && <span style={{ fontSize: 11, background: "rgba(252,129,129,0.15)", color: COLORS.danger, borderRadius: 4, padding: "1px 7px", fontWeight: 600 }}>🔴 {overdue.length}</span>}
-          {thisWeek.length > 0 && <span style={{ fontSize: 11, background: "rgba(246,173,85,0.15)", color: COLORS.warning, borderRadius: 4, padding: "1px 7px", fontWeight: 600 }}>🟡 {thisWeek.length}</span>}
-          {myTodos.length === 0 && <span style={{ fontSize: 12, color: COLORS.textLight }}>割り当てられたTODOはありません</span>}
-          <span style={{ marginLeft: "auto", fontSize: 12, color: COLORS.textLight }}>{open ? "▲" : "▼"}</span>
         </div>
 
         {/* 展開コンテンツ */}
-        {open && myTodos.length > 0 && (
+        {open && currentMember && (
           <div style={{ paddingBottom: 16 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 8 }}>
-              {overdue.map(({ todo, client, project }, i) => (
-                <div key={`od-${i}`} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <span style={{ fontSize: 12 }}>🔴</span>
-                  <div style={{ flex: 1 }}><TodoRow todo={todo} client={client} project={project} /></div>
-                </div>
-              ))}
-              {thisWeek.map(({ todo, client, project }, i) => (
-                <div key={`tw-${i}`} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <span style={{ fontSize: 12 }}>🟡</span>
-                  <div style={{ flex: 1 }}><TodoRow todo={todo} client={client} project={project} /></div>
-                </div>
-              ))}
-              {later.map(({ todo, client, project }, i) => (
-                <div key={`lt-${i}`} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <span style={{ fontSize: 12 }}>📋</span>
-                  <div style={{ flex: 1 }}><TodoRow todo={todo} client={client} project={project} /></div>
-                </div>
-              ))}
-            </div>
+            {myTodos.length === 0 ? (
+              <div style={{ fontSize: 13, color: COLORS.textLight, padding: "8px 0" }}>{currentMember} に割り当てられたTODOはありません</div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 8 }}>
+                {overdue.map(({ todo, client, project }, i) => (
+                  <div key={`od-${i}`} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ fontSize: 12 }}>🔴</span>
+                    <div style={{ flex: 1 }}><TodoRow todo={todo} client={client} project={project} /></div>
+                  </div>
+                ))}
+                {thisWeek.map(({ todo, client, project }, i) => (
+                  <div key={`tw-${i}`} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ fontSize: 12 }}>🟡</span>
+                    <div style={{ flex: 1 }}><TodoRow todo={todo} client={client} project={project} /></div>
+                  </div>
+                ))}
+                {later.map(({ todo, client, project }, i) => (
+                  <div key={`lt-${i}`} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ fontSize: 12 }}>📋</span>
+                    <div style={{ flex: 1 }}><TodoRow todo={todo} client={client} project={project} /></div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1997,7 +2008,7 @@ export default function App() {
   const [projects, setProjects] = useState(PROJECTS_INIT);
   const [clients, setClients] = useState(CLIENTS_INIT);
   const [members, setMembers] = useState(["Takuya"]);
-  const [currentMember, setCurrentMember] = useState("Takuya");
+  const [currentMember, setCurrentMember] = useState(null);
 
   // membersが変わったらOWNERSグローバル変数を同期
   useEffect(() => { OWNERS = members; }, [members]);
