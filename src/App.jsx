@@ -75,8 +75,7 @@ const COLORS = {
 const STATUS_CONFIG = {
   "進行中": { color: "#00B5AD", bg: "rgba(0,181,173,0.15)" },
   "提案中": { color: "#F6AD55", bg: "rgba(246,173,85,0.15)" },
-  "完了": { color: "#68D391", bg: "rgba(104,211,145,0.15)" },
-  "保留": { color: "#718096", bg: "rgba(113,128,150,0.15)" },
+  "連絡待ち": { color: "#667EEA", bg: "rgba(102,126,234,0.15)" },
   "失注": { color: "#FC8181", bg: "rgba(252,129,129,0.15)" },
 };
 
@@ -116,8 +115,46 @@ function getProjectStats(projectId, clients) {
 
 // ── 共通コンポーネント ──
 function Badge({ status }) {
-  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG["保留"];
+  const cfg = STATUS_CONFIG[status] || { color: "#718096", bg: "rgba(113,128,150,0.15)" };
   return <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 4, padding: "2px 10px", fontSize: 12, fontWeight: 600, letterSpacing: 0.3 }}>{status}</span>;
+}
+
+function StatusSelector({ status, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const cfg = STATUS_CONFIG[status] || { color: "#718096", bg: "rgba(113,128,150,0.15)" };
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <span onClick={() => setOpen(v => !v)} style={{ background: cfg.bg, color: cfg.color, borderRadius: 4, padding: "2px 10px", fontSize: 12, fontWeight: 600, letterSpacing: 0.3, cursor: "pointer", userSelect: "none", display: "inline-flex", alignItems: "center", gap: 4 }}>
+        {status} <span style={{ fontSize: 10 }}>▼</span>
+      </span>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 999, background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", minWidth: 120 }}>
+          {Object.keys(STATUS_CONFIG).map(s => {
+            const c = STATUS_CONFIG[s];
+            return (
+              <div key={s} onClick={() => { onChange(s); setOpen(false); }} style={{ padding: "6px 10px", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, background: s === status ? COLORS.card : "none" }}
+                onMouseEnter={e => e.currentTarget.style.background = COLORS.card}
+                onMouseLeave={e => e.currentTarget.style.background = s === status ? COLORS.card : "none"}
+              >
+                <span style={{ background: c.bg, color: c.color, borderRadius: 4, padding: "1px 8px", fontSize: 12, fontWeight: 600 }}>{s}</span>
+                {s === status && <span style={{ color: COLORS.primary, fontSize: 12 }}>✓</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function StatPill({ label, value, color }) {
@@ -206,14 +243,16 @@ function FilterView({ filterType, projects, clients, onBack, onSelectClient }) {
   const FILTER_CONFIG = {
     active:   { label: "進行中クライアント", color: COLORS.primary },
     proposal: { label: "提案中クライアント", color: COLORS.warning },
+    waiting:  { label: "連絡待ちクライアント", color: "#667EEA" },
     overdue:  { label: "期限超過TODO", color: COLORS.danger },
   };
   const cfg = FILTER_CONFIG[filterType];
 
-  // クライアントフィルター（active / proposal）
   const filteredClients = filterType !== "overdue"
     ? clients.filter(c => !c.archived && !c.isPotential && (
-        filterType === "active" ? c.status === "進行中" : c.status === "提案中"
+        filterType === "active" ? c.status === "進行中" :
+        filterType === "proposal" ? c.status === "提案中" :
+        filterType === "waiting" ? c.status === "連絡待ち" : false
       ))
     : [];
 
@@ -295,6 +334,7 @@ function FilterView({ filterType, projects, clients, onBack, onSelectClient }) {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                     <Avatar name={todo.owner} />
+                    <span style={{ fontSize: 12, color: COLORS.textLight }}>{todo.owner}</span>
                     <span style={{ fontSize: 12, color: COLORS.danger, fontWeight: 600 }}>{diffDays}日超過</span>
                     <span style={{ fontSize: 12, color: COLORS.textLight }}>{todo.due}</span>
                     <span style={{ color: COLORS.primary, fontSize: 18 }}>›</span>
@@ -399,9 +439,10 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
   const [showDeadlines, setShowDeadlines] = useState(true);
   const activeProjects = projects.filter(p => !p.archived);
   const archivedProjects = projects.filter(p => p.archived);
-  const totalOverdue = clients.filter(c => !c.archived && isOverdue(c)).length;
   const totalActive = clients.filter(c => !c.archived && c.status === "進行中").length;
   const totalProposal = clients.filter(c => !c.archived && c.status === "提案中").length;
+  const totalWaiting = clients.filter(c => !c.archived && c.status === "連絡待ち").length;
+  const totalOverdue = clients.filter(c => !c.archived && isOverdue(c)).length;
 
   // 期限が1週間以内または過ぎているTODOを全クライアント横断で収集
   const now = new Date();
@@ -428,7 +469,7 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
           { label: "総プロジェクト", value: activeProjects.length, color: COLORS.primary, filter: null },
           { label: "進行中クライアント", value: totalActive, color: COLORS.primary, filter: "active" },
           { label: "提案中", value: totalProposal, color: COLORS.warning, filter: "proposal" },
-          { label: "期限超過", value: totalOverdue, color: COLORS.danger, filter: "overdue" },
+          { label: "連絡待ち", value: totalWaiting, color: "#667EEA", filter: "waiting" },
         ].map(s => (
           <Card key={s.label} onClick={s.filter ? () => onFilterClick(s.filter) : undefined} style={{ textAlign: "center", padding: "16px 12px", cursor: s.filter ? "pointer" : "default" }}>
             <div style={{ fontSize: 28, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
@@ -476,6 +517,7 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                       <Avatar name={todo.owner} />
+                      <span style={{ fontSize: 12, color: COLORS.textLight }}>{todo.owner}</span>
                       <span style={{ fontSize: 12, color: isOD ? COLORS.danger : COLORS.warning, fontWeight: 600 }}>
                         {isOD ? `${Math.abs(diffDays)}日超過` : diffDays === 0 ? "今日" : `${diffDays}日後`}
                       </span>
@@ -737,7 +779,7 @@ function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClie
 
 // ── 失注クライアント ──
 function LostSection({ clients, onSelect }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   if (clients.length === 0) return null;
 
   return (
@@ -1215,8 +1257,16 @@ function TodoCard({ todo, todoIndex, clientTodos, onToggle, onSave, onSetNextAct
             </div>
             {todo.memo && <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 4, background: COLORS.surface, borderRadius: 4, padding: "4px 8px" }}>{todo.memo}</div>}
           </div>
-          <Avatar name={todo.owner || "?"} />
-          {todo.owners && todo.owners.length > 1 && todo.owners.slice(1).map(o => <Avatar key={o} name={o} />)}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+            <Avatar name={todo.owner || "?"} />
+            <span style={{ fontSize: 12, color: COLORS.textLight }}>{todo.owner}</span>
+            {todo.owners && todo.owners.length > 1 && todo.owners.slice(1).map(o => (
+              <span key={o} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                <Avatar name={o} />
+                <span style={{ fontSize: 12, color: COLORS.textLight }}>{o}</span>
+              </span>
+            ))}
+          </div>
           <span style={{ fontSize: 12, color: !done && todo.due && new Date(todo.due) < new Date() ? COLORS.danger : COLORS.textLight, minWidth: 70, textAlign: "right" }}>{todo.due}</span>
         </div>
         {!done && (
@@ -1731,7 +1781,7 @@ function ClientDetail({ client, project, onBackToProject, onBackToTop, onArchive
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 4 }}>
           <h2 style={{ margin: 0, fontSize: 22, color: COLORS.text, fontWeight: 700 }}>{client.name}</h2>
-          <Badge status={client.status} />
+          <StatusSelector status={client.status} onChange={s => onUpdateClient(client.id, { status: s })} />
         </div>
         <div style={{ fontSize: 13, color: COLORS.textLight, marginBottom: 10 }}>
           {client.phase} ・ 担当: {client.owner} ・ 最終更新: {client.lastUpdated}
