@@ -77,6 +77,7 @@ const STATUS_CONFIG = {
   "提案中": { color: "#F6AD55", bg: "rgba(246,173,85,0.15)" },
   "完了": { color: "#68D391", bg: "rgba(104,211,145,0.15)" },
   "保留": { color: "#718096", bg: "rgba(113,128,150,0.15)" },
+  "失注": { color: "#FC8181", bg: "rgba(252,129,129,0.15)" },
 };
 
 const POTENTIAL_STATUS_CONFIG = {
@@ -571,7 +572,7 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
 function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClient, onRestoreClient, onUpdateClient, onUpdateProject, onAddClient, showArchive, onToggleArchive }) {
   const [showClientForm, setShowClientForm] = useState(false);
   const [newClient, setNewClient] = useState({ name: "", status: "進行中", owner: OWNERS[0], phase: "", summary: "", info: { industry: "", country: "", contacts: [] } });
-  const activeClients = clients.filter(c => c.projectId === project.id && !c.archived);
+  const activeClients = clients.filter(c => c.projectId === project.id && !c.archived && !c.isPotential && c.status !== "失注");
   const archivedClients = clients.filter(c => c.projectId === project.id && c.archived);
   const stats = getProjectStats(project.id, clients);
   const width = useWindowWidth();
@@ -724,6 +725,52 @@ function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClie
         onPromote={id => onUpdateClient(id, { isPotential: false })}
         onArchive={onArchiveClient}
       />
+
+      {/* 失注クライアント */}
+      <LostSection
+        clients={clients.filter(c => c.projectId === project.id && c.status === "失注" && !c.archived && !c.isPotential)}
+        onSelect={onSelectClient}
+      />
+    </div>
+  );
+}
+
+// ── 失注クライアント ──
+function LostSection({ clients, onSelect }) {
+  const [open, setOpen] = useState(false);
+  if (clients.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: 32 }}>
+      <button onClick={() => setOpen(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, padding: 0, marginBottom: 10 }}>
+        <span style={{ fontSize: 13 }}>{open ? "▼" : "▶"}</span>
+        <span style={{ fontWeight: 700, color: COLORS.text, fontSize: 13 }}>失注</span>
+        <span style={{ fontSize: 12, color: COLORS.textLight }}>({clients.length})</span>
+      </button>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {clients.map(client => (
+            <Card key={client.id} onClick={() => onSelect(client)} style={{ padding: "14px 18px", opacity: 0.75 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <span style={{ fontWeight: 700, color: COLORS.text, fontSize: 14 }}>{client.name}</span>
+                    <Badge status="失注" />
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: "auto" }}>
+                      <Avatar name={client.owner} />
+                      <span style={{ fontSize: 12, color: COLORS.textLight }}>{client.owner}</span>
+                    </div>
+                  </div>
+                  {client.summary && (
+                    <div style={{ fontSize: 13, color: COLORS.textLight, lineHeight: 1.6 }}>{client.summary}</div>
+                  )}
+                </div>
+                <span style={{ color: COLORS.textLight, fontSize: 18, flexShrink: 0 }}>›</span>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
