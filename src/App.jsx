@@ -439,7 +439,7 @@ function ProjectCard({ project, stats, onSelect, onArchive, onSave }) {
   );
 }
 
-function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreProject, onDeleteProject, onUpdateProject, onAddProject, showArchive, onToggleArchive, onFilterClick, onClientClick }) {
+function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreProject, onDeleteProject, onUpdateProject, onAddProject, showArchive, onToggleArchive, onFilterClick, onClientClick, onCompleteTodo }) {
   const [showForm, setShowForm] = useState(false);
   const [newPJ, setNewPJ] = useState({ name: "", description: "", status: "進行中", owner: OWNERS[0], hasClients: true });
   const [showDeadlines, setShowDeadlines] = useState(true);
@@ -510,13 +510,17 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
                 const dueDate = new Date(todo.due);
                 const isOD = dueDate < now;
                 const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
+                const todoIdx = (client.todos || []).indexOf(todo);
                 return (
-                  <div key={i} onClick={() => onClientClick(client)} style={{ background: COLORS.card, border: `1px solid ${isOD ? "rgba(252,129,129,0.3)" : "rgba(246,173,85,0.3)"}`, borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", cursor: "pointer", transition: "border-color 0.15s" }}
+                  <div key={i} style={{ background: COLORS.card, border: `1px solid ${isOD ? "rgba(252,129,129,0.3)" : "rgba(246,173,85,0.3)"}`, borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", transition: "border-color 0.15s" }}
                     onMouseEnter={e => e.currentTarget.style.borderColor = isOD ? COLORS.danger : COLORS.warning}
                     onMouseLeave={e => e.currentTarget.style.borderColor = isOD ? "rgba(252,129,129,0.3)" : "rgba(246,173,85,0.3)"}
                   >
+                    <div onClick={() => onCompleteTodo(client.id, todoIdx)}
+                      style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${COLORS.primary}`, flexShrink: 0, cursor: "pointer" }}
+                    />
                     <span style={{ fontSize: 14 }}>{isOD ? "🔴" : "🟡"}</span>
-                    <div style={{ flex: 1, minWidth: 120 }}>
+                    <div onClick={() => onClientClick(client)} style={{ flex: 1, minWidth: 120, cursor: "pointer" }}>
                       <div style={{ fontSize: 13, color: COLORS.text, fontWeight: 500 }}>{todo.text}</div>
                       <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 2 }}>
                         {project?.name} › {client.name}
@@ -982,7 +986,11 @@ function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClie
       {/* ポテンシャルクライアント */}
       <PotentialSection
         projectId={project.id}
-        potentials={clients.filter(c => c.projectId === project.id && c.isPotential && !c.archived)}
+        potentials={clients.filter(c => c.projectId === project.id && c.isPotential && !c.archived)
+          .sort((a, b) => {
+            const order = { "高": 0, "中": 1, "低": 2 };
+            return (order[a.priority] ?? 1) - (order[b.priority] ?? 1);
+          })}
         onAdd={data => onAddClient({ ...data, projectId: project.id, isPotential: true })}
         onUpdate={onUpdateClient}
         onPromote={id => onUpdateClient(id, { isPotential: false })}
@@ -1328,6 +1336,46 @@ function SummaryEdit({ value, onSave }) {
 }
 
 // 資料カード（表示 + インライン編集）
+function DraggableMaterialList({ materials, onSave, onDelete, onReorder }) {
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+
+  function handleDragStart(i) { setDragIndex(i); }
+  function handleDragOver(e, i) { e.preventDefault(); setDragOverIndex(i); }
+  function handleDrop(i) {
+    if (dragIndex === null || dragIndex === i) { setDragIndex(null); setDragOverIndex(null); return; }
+    const newList = [...materials];
+    const [moved] = newList.splice(dragIndex, 1);
+    newList.splice(i, 0, moved);
+    onReorder(newList);
+    setDragIndex(null);
+    setDragOverIndex(null);
+  }
+  function handleDragEnd() { setDragIndex(null); setDragOverIndex(null); }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {materials.map((m, i) => (
+        <div key={i}
+          draggable
+          onDragStart={() => handleDragStart(i)}
+          onDragOver={e => handleDragOver(e, i)}
+          onDrop={() => handleDrop(i)}
+          onDragEnd={handleDragEnd}
+          style={{ opacity: dragIndex === i ? 0.4 : 1, borderTop: dragOverIndex === i && dragIndex !== i ? `2px solid ${COLORS.primary}` : "2px solid transparent", transition: "border-color 0.1s" }}
+        >
+          <div style={{ display: "flex", gap: 6, alignItems: "stretch" }}>
+            <div style={{ display: "flex", alignItems: "center", cursor: "grab", color: COLORS.textLight, fontSize: 16, padding: "0 4px", flexShrink: 0 }} title="ドラッグして並び替え">⋮⋮</div>
+            <div style={{ flex: 1 }}>
+              <MaterialCard material={m} onSave={updated => onSave(i, updated)} onDelete={() => onDelete(i)} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function MaterialCard({ material, onSave, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(material);
@@ -2156,7 +2204,7 @@ function PotentialInfoTab({ client, onSave }) {
 }
 
 // ── ポテンシャルクライアント詳細 ──
-function PotentialDetail({ client, project, onBackToProject, onBackToTop, onToggleTodo, onAddMaterial, onAddTodo, onUpdateMaterial, onUpdateTodo, onSetNextAction, onUpdateClient, onAddMtg, onUpdateMtg, onDeleteMtg, onDeleteMaterial, onDeleteTodo, onPromote }) {
+function PotentialDetail({ client, project, onBackToProject, onBackToTop, onToggleTodo, onAddMaterial, onAddTodo, onUpdateMaterial, onUpdateTodo, onSetNextAction, onUpdateClient, onAddMtg, onUpdateMtg, onDeleteMtg, onDeleteMaterial, onDeleteTodo, onPromote, onReorderMaterials }) {
   const [tab, setTab] = useState("mtg");
   const [showMaterialForm, setShowMaterialForm] = useState(false);
   const [showTodoForm, setShowTodoForm] = useState(false);
@@ -2233,9 +2281,12 @@ function PotentialDetail({ client, project, onBackToProject, onBackToTop, onTogg
 
       {tab === "materials" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {(client.materials || []).map((m, i) => (
-            <MaterialCard key={i} material={m} onSave={updated => onUpdateMaterial(client.id, i, updated)} onDelete={() => onDeleteMaterial(client.id, i)} onDirty={v => { isDirtyRef.current = v; }} />
-          ))}
+          <DraggableMaterialList
+            materials={client.materials || []}
+            onSave={(i, updated) => onUpdateMaterial(client.id, i, updated)}
+            onDelete={i => onDeleteMaterial(client.id, i)}
+            onReorder={newList => onReorderMaterials(client.id, newList)}
+          />
           {showMaterialForm
             ? <AddMaterialForm onAdd={ms => { onAddMaterial(client.id, ms); setShowMaterialForm(false); isDirtyRef.current = false; }} onCancel={() => { setShowMaterialForm(false); isDirtyRef.current = false; }} />
             : <button onClick={() => setShowMaterialForm(true)} style={{ background: "none", border: `1px dashed ${COLORS.border}`, borderRadius: 8, padding: "10px", cursor: "pointer", color: COLORS.textLight, fontSize: 13, width: "100%" }}>+ 資料を追加</button>
@@ -2300,7 +2351,7 @@ function PotentialDetail({ client, project, onBackToProject, onBackToTop, onTogg
   );
 }
 
-function ClientDetail({ client, project, onBackToProject, onBackToTop, onArchive, onToggleTodo, onAddMaterial, onAddTodo, onUpdateMaterial, onUpdateTodo, onSetNextAction, onUpdateClient, onAddMtg, onUpdateMtg, onDeleteMtg, onDeleteMaterial, onDeleteTodo }) {
+function ClientDetail({ client, project, onBackToProject, onBackToTop, onArchive, onToggleTodo, onAddMaterial, onAddTodo, onUpdateMaterial, onUpdateTodo, onSetNextAction, onUpdateClient, onAddMtg, onUpdateMtg, onDeleteMtg, onDeleteMaterial, onDeleteTodo, onReorderMaterials }) {
   const [tab, setTab] = useState("mtg");
   const isDirtyRef = useRef(false);
 
@@ -2375,9 +2426,12 @@ function ClientDetail({ client, project, onBackToProject, onBackToTop, onArchive
 
       {tab === "materials" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {client.materials.map((m, i) => (
-            <MaterialCard key={i} material={m} onSave={updated => { onUpdateMaterial(client.id, i, updated); isDirtyRef.current = false; }} onDelete={() => onDeleteMaterial(client.id, i)} onDirty={v => { isDirtyRef.current = v; }} />
-          ))}
+          <DraggableMaterialList
+            materials={client.materials}
+            onSave={(i, updated) => { onUpdateMaterial(client.id, i, updated); isDirtyRef.current = false; }}
+            onDelete={i => onDeleteMaterial(client.id, i)}
+            onReorder={newList => onReorderMaterials(client.id, newList)}
+          />
           {showMaterialForm
             ? <AddMaterialForm onAdd={ms => { onAddMaterial(client.id, ms); setShowMaterialForm(false); isDirtyRef.current = false; }} onCancel={() => { setShowMaterialForm(false); isDirtyRef.current = false; }} />
             : <button onClick={() => { setShowMaterialForm(true); isDirtyRef.current = true; }} style={{ background: "none", border: `1px dashed ${COLORS.border}`, borderRadius: 8, padding: "10px", cursor: "pointer", color: COLORS.textLight, fontSize: 13, width: "100%" }}>+ 資料を追加</button>
@@ -2815,6 +2869,12 @@ function AppMain() {
     }));
   }
 
+  function reorderMaterials(clientId, newMaterials) {
+    setClients(prev => prev.map(c =>
+      c.id === clientId ? { ...c, materials: newMaterials, lastUpdated: today() } : c
+    ));
+  }
+
   function updateTodo(clientId, index, updated) {
     setClients(prev => prev.map(c => {
       if (c.id !== clientId) return c;
@@ -2962,6 +3022,7 @@ function AppMain() {
                 const project = projects.find(p => p.id === client.projectId);
                 if (project) { setSelectedProject(project); goToClient(client); }
               }}
+              onCompleteTodo={toggleTodo}
             />
           </>
         )}
@@ -3011,6 +3072,7 @@ function AppMain() {
             onDeleteMtg={deleteMtg}
             onDeleteMaterial={deleteMaterial}
             onDeleteTodo={deleteTodo}
+            onReorderMaterials={reorderMaterials}
           />
         )}
         {view === "potential" && selectedPotential && selectedProject && (
@@ -3031,6 +3093,7 @@ function AppMain() {
             onDeleteMaterial={deleteMaterial}
             onDeleteTodo={deleteTodo}
             onPromote={id => updateClient(id, { isPotential: false })}
+            onReorderMaterials={reorderMaterials}
           />
         )}
       </div>
