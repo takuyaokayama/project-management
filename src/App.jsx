@@ -284,11 +284,30 @@ function ProjectCard({ project, stats, onSelect, onArchive, onSave }) {
 function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreProject, onUpdateProject, onAddProject, showArchive, onToggleArchive }) {
   const [showForm, setShowForm] = useState(false);
   const [newPJ, setNewPJ] = useState({ name: "", description: "", status: "進行中", owner: OWNERS[0] });
+  const [showDeadlines, setShowDeadlines] = useState(true);
   const activeProjects = projects.filter(p => !p.archived);
   const archivedProjects = projects.filter(p => p.archived);
   const totalOverdue = clients.filter(c => !c.archived && isOverdue(c)).length;
   const totalActive = clients.filter(c => !c.archived && c.status === "進行中").length;
   const totalProposal = clients.filter(c => !c.archived && c.status === "提案中").length;
+
+  // 期限が1週間以内または過ぎているTODOを全クライアント横断で収集
+  const now = new Date();
+  const oneWeekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const urgentTodos = [];
+  clients.filter(c => !c.archived && !c.isPotential).forEach(client => {
+    const project = projects.find(p => p.id === client.projectId);
+    (client.todos || []).filter(t => !t.done && t.due).forEach(todo => {
+      const dueDate = new Date(todo.due);
+      if (dueDate <= oneWeekLater) {
+        urgentTodos.push({ todo, client, project });
+      }
+    });
+  });
+  urgentTodos.sort((a, b) => new Date(a.todo.due) - new Date(b.todo.due));
+
+  const overdueTodos = urgentTodos.filter(({ todo }) => new Date(todo.due) < now);
+  const soonTodos = urgentTodos.filter(({ todo }) => new Date(todo.due) >= now);
 
   return (
     <div>
@@ -305,6 +324,54 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
           </Card>
         ))}
       </div>
+
+      {/* 期限アラートセクション */}
+      {urgentTodos.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <button onClick={() => setShowDeadlines(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, padding: 0, marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>
+              {showDeadlines ? "▼" : "▶"} 期限アラート
+            </span>
+            {overdueTodos.length > 0 && (
+              <span style={{ fontSize: 11, background: "rgba(252,129,129,0.15)", color: COLORS.danger, borderRadius: 4, padding: "1px 8px", fontWeight: 600 }}>
+                期限超過 {overdueTodos.length}件
+              </span>
+            )}
+            {soonTodos.length > 0 && (
+              <span style={{ fontSize: 11, background: "rgba(246,173,85,0.15)", color: COLORS.warning, borderRadius: 4, padding: "1px 8px", fontWeight: 600 }}>
+                1週間以内 {soonTodos.length}件
+              </span>
+            )}
+          </button>
+          {showDeadlines && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {urgentTodos.map(({ todo, client, project }, i) => {
+                const dueDate = new Date(todo.due);
+                const isOD = dueDate < now;
+                const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
+                return (
+                  <div key={i} style={{ background: COLORS.card, border: `1px solid ${isOD ? "rgba(252,129,129,0.3)" : "rgba(246,173,85,0.3)"}`, borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 14 }}>{isOD ? "🔴" : "🟡"}</span>
+                    <div style={{ flex: 1, minWidth: 120 }}>
+                      <div style={{ fontSize: 13, color: COLORS.text, fontWeight: 500 }}>{todo.text}</div>
+                      <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 2 }}>
+                        {project?.name} › {client.name}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                      <Avatar name={todo.owner} />
+                      <span style={{ fontSize: 12, color: isOD ? COLORS.danger : COLORS.warning, fontWeight: 600 }}>
+                        {isOD ? `${Math.abs(diffDays)}日超過` : diffDays === 0 ? "今日" : `${diffDays}日後`}
+                      </span>
+                      <span style={{ fontSize: 12, color: COLORS.textLight }}>{todo.due}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {activeProjects.map(project => {
@@ -1403,7 +1470,10 @@ function InfoTab({ client, onSave }) {
           { label: "フェーズ", value: client.phase },
           { label: "ステータス", value: <Badge status={client.status} /> },
           { label: "担当者（自社）", value: client.owner },
-          { label: "URL", value: client.info.industry },
+          { label: "URL", value: client.info.industry
+            ? <a href={client.info.industry.startsWith("http") ? client.info.industry : `https://${client.info.industry}`} target="_blank" rel="noreferrer" style={{ color: COLORS.primary, fontSize: 14, wordBreak: "break-all" }}>{client.info.industry}</a>
+            : "—"
+          },
           { label: "国", value: client.info.country },
         ].map(f => (
           <div key={f.label}>
