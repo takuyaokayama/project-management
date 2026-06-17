@@ -102,11 +102,13 @@ function isOverdue(client) {
 }
 
 function getProjectStats(projectId, clients) {
-  const cs = clients.filter(c => c.projectId === projectId && !c.archived);
+  const all = clients.filter(c => c.projectId === projectId && !c.archived);
+  const cs = all.filter(c => !c.isPotential && c.status !== "失注");
   return {
     total: cs.length,
     active: cs.filter(c => c.status === "進行中").length,
     proposal: cs.filter(c => c.status === "提案中").length,
+    potential: all.filter(c => c.isPotential).length,
     overdue: cs.filter(isOverdue).length,
   };
 }
@@ -401,7 +403,7 @@ function ProjectCard({ project, stats, onSelect, onArchive, onSave }) {
           <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
             <StatPill label="進行中" value={stats.active} color={COLORS.primary} />
             <StatPill label="提案中" value={stats.proposal} color={COLORS.warning} />
-            {stats.overdue > 0 && <StatPill label="期限超過" value={stats.overdue} color={COLORS.danger} />}
+            {stats.potential > 0 && <StatPill label="ポテンシャル" value={stats.potential} color="#667EEA" />}
             <span style={{ fontSize: 12, color: COLORS.border }}>|</span>
             <span style={{ fontSize: 12, color: COLORS.textLight }}>{stats.total}社</span>
           </div>
@@ -643,10 +645,9 @@ function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClie
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
         {[
-          { label: "クライアント数", value: stats.total, color: COLORS.primary },
           { label: "進行中", value: stats.active, color: COLORS.primary },
           { label: "提案中", value: stats.proposal, color: COLORS.warning },
-          { label: "期限超過", value: stats.overdue, color: COLORS.danger },
+          { label: "ポテンシャル", value: stats.potential, color: "#667EEA" },
         ].map(s => (
           <Card key={s.label} style={{ textAlign: "center", padding: "14px 10px" }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
