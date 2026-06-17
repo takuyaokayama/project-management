@@ -1533,7 +1533,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
+    <div style={{ fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, margin: 0, padding: 0, boxSizing: "border-box" }}>
       {/* Nav */}
       <div style={{ background: COLORS.surface, borderBottom: `1px solid ${COLORS.border}`, padding: "0 32px", display: "flex", alignItems: "center", height: 56, gap: 16, position: "sticky", top: 0, zIndex: 100 }}>
         <div onClick={goToTop} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
