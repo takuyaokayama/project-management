@@ -2311,7 +2311,7 @@ export default function App() {
           <div style={{ width: 28, height: 28, background: COLORS.primary, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ color: "#0F1117", fontSize: 14, fontWeight: 700 }}>P</span>
           </div>
-          <span style={{ fontWeight: 700, fontSize: 16, color: COLORS.text }}>Project Hub</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: COLORS.text }}>Okayama CRM</span>
           <span style={{ fontSize: 10, background: COLORS.primaryLight, color: COLORS.primary, padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>dataSpring</span>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
