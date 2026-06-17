@@ -1,72 +1,28 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
-// ── Google Sheets 設定 ──
-// 実際の値に差し替えてください
-const SHEETS_CONFIG = {
-  API_KEY: "AIzaSyA1urs7gO8wtKZlBcl0Zj05iMz1bY4f84o",        // GCPで発行したAPIキー
-  SPREADSHEET_ID: "1O-1Iah8hlavFXUQQE0-4pnhWnNJpA6YEx7QJMJgTGa8", // SpreadsheetのID
-};
+// ── GAS設定 ──
+// GASデプロイ後に発行されたウェブアプリのURLを設定してください
+const GAS_URL = "https://script.google.com/macros/s/AKfycbyGcNV1vOSO6htWKBoIQ-1EdkvKTGheNsD-GkZpHBwsUfZwjbJB4BN8bGMqL2PHUtKJ/exec";
 
-const SHEETS_API = `https://sheets.googleapis.com/v4/spreadsheets/${SHEETS_CONFIG.SPREADSHEET_ID}`;
-
-// ── Sheets読み書きユーティリティ ──
-async function sheetsRead(range) {
-  const url = `${SHEETS_API}/values/${encodeURIComponent(range)}?key=${SHEETS_CONFIG.API_KEY}`;
+// ── GAS読み書きユーティリティ ──
+async function loadFromGAS() {
+  const url = `${GAS_URL}?action=load`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Sheets read error: ${res.status}`);
+  if (!res.ok) throw new Error(`Load error: ${res.status}`);
   const data = await res.json();
-  return data.values || [];
+  if (data.error) throw new Error(data.error);
+  return data; // { projects, clients }
 }
 
-async function sheetsWrite(range, values) {
-  const url = `${SHEETS_API}/values/${encodeURIComponent(range)}?valueInputOption=RAW&key=${SHEETS_CONFIG.API_KEY}`;
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ range, majorDimension: "ROWS", values }),
+async function saveToGAS(projects, clients) {
+  const res = await fetch(GAS_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" }, // GASはapplication/jsonをブロックするためtext/plainを使用
+    body: JSON.stringify({ action: "save", projects, clients }),
   });
-  if (!res.ok) throw new Error(`Sheets write error: ${res.status}`);
-  return res.json();
-}
-
-async function sheetsClear(range) {
-  const url = `${SHEETS_API}/values/${encodeURIComponent(range)}:clear?key=${SHEETS_CONFIG.API_KEY}`;
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" } });
-  if (!res.ok) throw new Error(`Sheets clear error: ${res.status}`);
-}
-
-// データをSheetの1行にシリアライズ/デシリアライズ
-function serializeRow(obj) {
-  return [JSON.stringify(obj)];
-}
-
-function deserializeRow(row) {
-  try { return JSON.parse(row[0]); } catch { return null; }
-}
-
-// Sheetsから全データを読み込む
-async function loadFromSheets() {
-  const [projectRows, clientRows] = await Promise.all([
-    sheetsRead("projects!A:A"),
-    sheetsRead("clients!A:A"),
-  ]);
-  const projects = projectRows.map(deserializeRow).filter(Boolean);
-  const clients = clientRows.map(deserializeRow).filter(Boolean);
-  return { projects, clients };
-}
-
-// Sheetsに全データを書き込む
-async function saveToSheets(projects, clients) {
-  await Promise.all([
-    sheetsClear("projects!A:A"),
-    sheetsClear("clients!A:A"),
-  ]);
-  if (projects.length > 0) {
-    await sheetsWrite("projects!A1", projects.map(serializeRow));
-  }
-  if (clients.length > 0) {
-    await sheetsWrite("clients!A1", clients.map(serializeRow));
-  }
+  if (!res.ok) throw new Error(`Save error: ${res.status}`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
 }
 
 // ── ダークモードカラー ──
@@ -1362,23 +1318,23 @@ export default function App() {
   const [selectedClient, setSelectedClient] = useState(null);
   const [showArchive, setShowArchive] = useState(false);
 
-  // Sheets連携状態
-  const [syncStatus, setSyncStatus] = useState("idle"); // "idle" | "loading" | "saving" | "saved" | "error"
-  const [sheetsEnabled] = useState(SHEETS_CONFIG.API_KEY !== "aaaaaaaaaaaaa");
+  // GAS連携状態
+  const [syncStatus, setSyncStatus] = useState("idle");
+  const [gasEnabled] = useState(GAS_URL !== "aaaaaaaaaa");
   const saveTimerRef = useRef(null);
   const isFirstLoad = useRef(true);
 
-  // 起動時にSheetsからデータ読み込み
+  // 起動時にGASからデータ読み込み
   useEffect(() => {
-    if (!sheetsEnabled) return;
+    if (!gasEnabled) return;
     setSyncStatus("loading");
-    loadFromSheets()
+    loadFromGAS()
       .then(({ projects: p, clients: c }) => {
-        if (p.length > 0) {
+        if (p && p.length > 0) {
           setProjects(p);
           nextProjectId.current = Math.max(...p.map(x => x.id)) + 1;
         }
-        if (c.length > 0) {
+        if (c && c.length > 0) {
           setClients(c);
           nextClientId.current = Math.max(...c.map(x => x.id)) + 1;
         }
@@ -1390,11 +1346,11 @@ export default function App() {
 
   // データ変更時にdebounce（1秒）して自動保存
   useEffect(() => {
-    if (!sheetsEnabled || isFirstLoad.current) return;
+    if (!gasEnabled || isFirstLoad.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setSyncStatus("saving");
     saveTimerRef.current = setTimeout(() => {
-      saveToSheets(projects, clients)
+      saveToGAS(projects, clients)
         .then(() => setSyncStatus("saved"))
         .catch(() => setSyncStatus("error"));
     }, 1000);
@@ -1533,7 +1489,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", background: COLORS.bg, minHeight: "100vh", color: COLORS.text, margin: 0, padding: 0, boxSizing: "border-box" }}>
+    <div style={{ fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", background: COLORS.bg, minHeight: "100vh", color: COLORS.text }}>
       {/* Nav */}
       <div style={{ background: COLORS.surface, borderBottom: `1px solid ${COLORS.border}`, padding: "0 32px", display: "flex", alignItems: "center", height: 56, gap: 16, position: "sticky", top: 0, zIndex: 100 }}>
         <div onClick={goToTop} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
@@ -1544,22 +1500,22 @@ export default function App() {
           <span style={{ fontSize: 10, background: COLORS.primaryLight, color: COLORS.primary, padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>dataSpring</span>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-          {!sheetsEnabled && (
+          {!gasEnabled && (
             <span style={{ fontSize: 11, color: COLORS.warning, background: "rgba(246,173,85,0.1)", padding: "3px 8px", borderRadius: 4 }}>
-              ⚠ ローカルモード（Sheets未設定）
+              ⚠ ローカルモード（GAS未設定）
             </span>
           )}
-          {sheetsEnabled && syncStatus === "loading" && (
+          {gasEnabled && syncStatus === "loading" && (
             <span style={{ fontSize: 11, color: COLORS.textLight }}>⟳ 読み込み中...</span>
           )}
-          {sheetsEnabled && syncStatus === "saving" && (
+          {gasEnabled && syncStatus === "saving" && (
             <span style={{ fontSize: 11, color: COLORS.textLight }}>⟳ 保存中...</span>
           )}
-          {sheetsEnabled && syncStatus === "saved" && (
+          {gasEnabled && syncStatus === "saved" && (
             <span style={{ fontSize: 11, color: COLORS.success }}>✓ 保存済み</span>
           )}
-          {sheetsEnabled && syncStatus === "error" && (
-            <span style={{ fontSize: 11, color: COLORS.danger }}>✕ 保存エラー（API設定を確認）</span>
+          {gasEnabled && syncStatus === "error" && (
+            <span style={{ fontSize: 11, color: COLORS.danger }}>✕ 保存エラー（GAS設定を確認）</span>
           )}
         </div>
       </div>
