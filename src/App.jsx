@@ -679,7 +679,13 @@ function ProjectWorkspace({ project, onBack, onUpdateProject }) {
   function updateMtg(index, updated) { updateProject({ mtgs: mtgs.map((m, i) => i === index ? updated : m) }); }
   function deleteMtg(index) { updateProject({ mtgs: mtgs.filter((_, i) => i !== index) }); }
 
-  function addMaterial(m) { updateProject({ materials: [...materials, m] }); }
+  function addMaterial(m) {
+    if (Array.isArray(m)) {
+      updateProject({ materials: [...materials, ...m] });
+    } else {
+      updateProject({ materials: [...materials, m] });
+    }
+  }
   function updateMaterial(index, updated) { updateProject({ materials: materials.map((m, i) => i === index ? updated : m) }); }
   function deleteMaterial(index) { updateProject({ materials: materials.filter((_, i) => i !== index) }); }
 
@@ -757,7 +763,7 @@ function ProjectWorkspace({ project, onBack, onUpdateProject }) {
             <MaterialCard key={i} material={m} onSave={updated => updateMaterial(i, updated)} onDelete={() => deleteMaterial(i)} />
           ))}
           {showMaterialForm
-            ? <AddMaterialForm onAdd={m => { addMaterial(m); setShowMaterialForm(false); }} onCancel={() => setShowMaterialForm(false)} />
+            ? <AddMaterialForm onAdd={ms => { ms.forEach(m => addMaterial(m)); setShowMaterialForm(false); }} onCancel={() => setShowMaterialForm(false)} />
             : <button onClick={() => setShowMaterialForm(true)} style={{ background: "none", border: `1px dashed ${COLORS.border}`, borderRadius: 8, padding: "10px", cursor: "pointer", color: COLORS.textLight, fontSize: 13, width: "100%" }}>+ 資料を追加</button>
           }
         </div>
@@ -1555,7 +1561,7 @@ function AddMaterialForm({ onAdd, onCancel }) {
   function handleSubmit() {
     const valid = files.filter(f => f.name.trim());
     if (valid.length === 0) return;
-    valid.forEach(f => onAdd({ name: f.name.trim(), type: f.type.trim(), url: f.url.trim(), memo: f.memo.trim(), date: f.date }));
+    onAdd(valid.map(f => ({ name: f.name.trim(), type: f.type.trim(), url: f.url.trim(), memo: f.memo.trim(), date: f.date })));
   }
 
   const anyUploading = files.some(f => f.uploading);
@@ -2227,7 +2233,7 @@ function PotentialDetail({ client, project, onBackToProject, onBackToTop, onTogg
             <MaterialCard key={i} material={m} onSave={updated => onUpdateMaterial(client.id, i, updated)} onDelete={() => onDeleteMaterial(client.id, i)} onDirty={v => { isDirtyRef.current = v; }} />
           ))}
           {showMaterialForm
-            ? <AddMaterialForm onAdd={m => { onAddMaterial(client.id, m); setShowMaterialForm(false); isDirtyRef.current = false; }} onCancel={() => { setShowMaterialForm(false); isDirtyRef.current = false; }} />
+            ? <AddMaterialForm onAdd={ms => { onAddMaterial(client.id, ms); setShowMaterialForm(false); isDirtyRef.current = false; }} onCancel={() => { setShowMaterialForm(false); isDirtyRef.current = false; }} />
             : <button onClick={() => setShowMaterialForm(true)} style={{ background: "none", border: `1px dashed ${COLORS.border}`, borderRadius: 8, padding: "10px", cursor: "pointer", color: COLORS.textLight, fontSize: 13, width: "100%" }}>+ 資料を追加</button>
           }
         </div>
@@ -2369,7 +2375,7 @@ function ClientDetail({ client, project, onBackToProject, onBackToTop, onArchive
             <MaterialCard key={i} material={m} onSave={updated => { onUpdateMaterial(client.id, i, updated); isDirtyRef.current = false; }} onDelete={() => onDeleteMaterial(client.id, i)} onDirty={v => { isDirtyRef.current = v; }} />
           ))}
           {showMaterialForm
-            ? <AddMaterialForm onAdd={m => { onAddMaterial(client.id, m); setShowMaterialForm(false); isDirtyRef.current = false; }} onCancel={() => { setShowMaterialForm(false); isDirtyRef.current = false; }} />
+            ? <AddMaterialForm onAdd={ms => { onAddMaterial(client.id, ms); setShowMaterialForm(false); isDirtyRef.current = false; }} onCancel={() => { setShowMaterialForm(false); isDirtyRef.current = false; }} />
             : <button onClick={() => { setShowMaterialForm(true); isDirtyRef.current = true; }} style={{ background: "none", border: `1px dashed ${COLORS.border}`, borderRadius: 8, padding: "10px", cursor: "pointer", color: COLORS.textLight, fontSize: 13, width: "100%" }}>+ 資料を追加</button>
           }
         </div>
@@ -2773,9 +2779,15 @@ function AppMain() {
   }
 
   function addMaterial(clientId, material) {
-    setClients(prev => prev.map(c =>
-      c.id === clientId ? { ...c, materials: [...c.materials, material], lastUpdated: today() } : c
-    ));
+    if (Array.isArray(material)) {
+      setClients(prev => prev.map(c =>
+        c.id === clientId ? { ...c, materials: [...c.materials, ...material], lastUpdated: today() } : c
+      ));
+    } else {
+      setClients(prev => prev.map(c =>
+        c.id === clientId ? { ...c, materials: [...c.materials, material], lastUpdated: today() } : c
+      ));
+    }
   }
 
   function addTodo(clientId, todo) {
