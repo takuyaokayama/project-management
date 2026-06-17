@@ -373,6 +373,12 @@ function ProjectCard({ project, stats, onSelect, onArchive, onSave }) {
             <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>説明</div>
             <textarea value={draft.description} onChange={e => setDraft(d => ({ ...d, description: e.target.value }))} rows={2} style={inputStyle({ resize: "vertical" })} />
           </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: 11, color: COLORS.textLight }}>クライアント管理</div>
+            <button onClick={() => setDraft(d => ({ ...d, hasClients: !d.hasClients }))} style={{ background: draft.hasClients !== false ? COLORS.primaryLight : COLORS.surface, border: `1px solid ${draft.hasClients !== false ? COLORS.primary : COLORS.border}`, borderRadius: 6, padding: "4px 12px", cursor: "pointer", color: draft.hasClients !== false ? COLORS.primary : COLORS.textLight, fontSize: 12, fontWeight: 600 }}>
+              {draft.hasClients !== false ? "あり" : "なし"}
+            </button>
+          </div>
           <div>
             <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>ステータス</div>
             <select value={draft.status} onChange={e => setDraft(d => ({ ...d, status: e.target.value }))} style={inputStyle({ width: "auto" })}>
@@ -435,13 +441,14 @@ function ProjectCard({ project, stats, onSelect, onArchive, onSave }) {
 
 function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreProject, onUpdateProject, onAddProject, showArchive, onToggleArchive, onFilterClick, onClientClick }) {
   const [showForm, setShowForm] = useState(false);
-  const [newPJ, setNewPJ] = useState({ name: "", description: "", status: "進行中", owner: OWNERS[0] });
+  const [newPJ, setNewPJ] = useState({ name: "", description: "", status: "進行中", owner: OWNERS[0], hasClients: true });
   const [showDeadlines, setShowDeadlines] = useState(true);
   const activeProjects = projects.filter(p => !p.archived);
   const archivedProjects = projects.filter(p => p.archived);
-  const totalActive = clients.filter(c => !c.archived && c.status === "進行中").length;
-  const totalProposal = clients.filter(c => !c.archived && c.status === "提案中").length;
-  const totalWaiting = clients.filter(c => !c.archived && c.status === "連絡待ち").length;
+  const activeRealClients = clients.filter(c => !c.archived && !c.isPotential && c.status !== "失注");
+  const totalActive = activeRealClients.filter(c => c.status === "進行中").length;
+  const totalProposal = activeRealClients.filter(c => c.status === "提案中").length;
+  const totalWaiting = activeRealClients.filter(c => c.status === "連絡待ち").length;
   const totalOverdue = clients.filter(c => !c.archived && isOverdue(c)).length;
 
   // 期限が1週間以内または過ぎているToDoを全クライアント横断で収集
@@ -565,6 +572,13 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
               <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>説明</div>
               <textarea value={newPJ.description} onChange={e => setNewPJ(d => ({ ...d, description: e.target.value }))} rows={2} style={inputStyle({ resize: "vertical" })} />
             </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 11, color: COLORS.textLight }}>クライアント管理</div>
+              <button onClick={() => setNewPJ(d => ({ ...d, hasClients: !d.hasClients }))} style={{ background: newPJ.hasClients ? COLORS.primaryLight : COLORS.surface, border: `1px solid ${newPJ.hasClients ? COLORS.primary : COLORS.border}`, borderRadius: 6, padding: "4px 12px", cursor: "pointer", color: newPJ.hasClients ? COLORS.primary : COLORS.textLight, fontSize: 12, fontWeight: 600 }}>
+                {newPJ.hasClients ? "あり" : "なし"}
+              </button>
+              <span style={{ fontSize: 11, color: COLORS.textLight }}>「なし」の場合、MTG・資料・ToDoを直接管理</span>
+            </div>
             <div>
               <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>ステータス</div>
               <select value={newPJ.status} onChange={e => setNewPJ(d => ({ ...d, status: e.target.value }))} style={inputStyle({ width: "auto" })}>
@@ -572,8 +586,8 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
               </select>
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button onClick={() => { setShowForm(false); setNewPJ({ name: "", description: "", status: "進行中", owner: OWNERS[0] }); }} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer", color: COLORS.textLight, fontSize: 13 }}>キャンセル</button>
-              <button onClick={() => { if (newPJ.name.trim()) { onAddProject(newPJ); setShowForm(false); setNewPJ({ name: "", description: "", status: "進行中", owner: OWNERS[0] }); } }} style={{ background: COLORS.primary, border: "none", borderRadius: 6, padding: "5px 14px", cursor: "pointer", color: "#0F1117", fontSize: 13, fontWeight: 700 }}>追加</button>
+              <button onClick={() => { setShowForm(false); setNewPJ({ name: "", description: "", status: "進行中", owner: OWNERS[0], hasClients: true }); }} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer", color: COLORS.textLight, fontSize: 13 }}>キャンセル</button>
+              <button onClick={() => { if (newPJ.name.trim()) { onAddProject(newPJ); setShowForm(false); setNewPJ({ name: "", description: "", status: "進行中", owner: OWNERS[0], hasClients: true }); } }} style={{ background: COLORS.primary, border: "none", borderRadius: 6, padding: "5px 14px", cursor: "pointer", color: "#0F1117", fontSize: 13, fontWeight: 700 }}>追加</button>
             </div>
           </div>
         </Card>
@@ -645,7 +659,175 @@ function ClientRowCard({ client, onSelect, onSave, onArchive, isSmall }) {
 }
 
 // ── 画面2: プロジェクト詳細 ──
+// ── クライアントなしプロジェクトのワークスペース ──
+function ProjectWorkspace({ project, onBack, onUpdateProject }) {
+  const [tab, setTab] = useState("mtg");
+  const [showMaterialForm, setShowMaterialForm] = useState(false);
+  const [showTodoForm, setShowTodoForm] = useState(false);
+  const isDirtyRef = useRef(false);
+  const tabs = [{ key: "mtg", label: "MTGログ" }, { key: "materials", label: "資料" }, { key: "todos", label: "ToDo" }];
+
+  const mtgs = project.mtgs || [];
+  const materials = project.materials || [];
+  const todos = project.todos || [];
+  const pendingTodos = todos.filter(t => !t.done);
+  const doneTodos = todos.filter(t => t.done);
+
+  function updateProject(patch) { onUpdateProject(project.id, patch); }
+
+  function addMtg(mtg) { updateProject({ mtgs: [...mtgs, mtg] }); }
+  function updateMtg(index, updated) { updateProject({ mtgs: mtgs.map((m, i) => i === index ? updated : m) }); }
+  function deleteMtg(index) { updateProject({ mtgs: mtgs.filter((_, i) => i !== index) }); }
+
+  function addMaterial(m) { updateProject({ materials: [...materials, m] }); }
+  function updateMaterial(index, updated) { updateProject({ materials: materials.map((m, i) => i === index ? updated : m) }); }
+  function deleteMaterial(index) { updateProject({ materials: materials.filter((_, i) => i !== index) }); }
+
+  function sortTodos(ts) {
+    return [...ts].sort((a, b) => {
+      if (!a.due && !b.due) return 0;
+      if (!a.due) return 1;
+      if (!b.due) return -1;
+      return new Date(a.due) - new Date(b.due);
+    });
+  }
+  function addTodo(todo) { updateProject({ todos: sortTodos([...todos, todo]) }); }
+  function updateTodo(index, updated) { updateProject({ todos: sortTodos(todos.map((t, i) => i === index ? updated : t)) }); }
+  function toggleTodo(index) { updateProject({ todos: todos.map((t, i) => i === index ? { ...t, done: !t.done } : t) }); }
+  function deleteTodo(index) { updateProject({ todos: todos.filter((_, i) => i !== index) }); }
+  function setNextAction(index) {
+    const alreadyFlagged = todos[index]?.isNextAction;
+    updateProject({ todos: todos.map((t, i) => ({ ...t, isNextAction: alreadyFlagged ? false : i === index })) });
+  }
+
+  function safeSetTab(newTab) {
+    if (isDirtyRef.current) {
+      if (!window.confirm("編集中の内容が破棄されます。タブを切り替えますか？")) return;
+      isDirtyRef.current = false;
+    }
+    setTab(newTab);
+  }
+
+  const na = getNextAction(todos);
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <BackButton onClick={onBack} />
+        <Breadcrumb items={[{ label: "プロジェクト一覧", onClick: onBack }, { label: project.name }]} />
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6, flexWrap: "wrap" }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: COLORS.text }}>{project.name}</h2>
+          <Badge status={project.status} />
+        </div>
+        <div style={{ fontSize: 13, color: COLORS.textLight, marginBottom: 10 }}>PJオーナー: {project.owner}</div>
+        <SummaryEdit value={project.description} onSave={v => onUpdateProject(project.id, { description: v })} />
+      </div>
+
+      {na && (
+        <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 18 }}>⚡</span>
+          <div>
+            <div style={{ fontSize: 11, color: COLORS.textLight, fontWeight: 600, letterSpacing: 0.5 }}>NEXT ACTION</div>
+            <div style={{ fontSize: 14, color: COLORS.text, fontWeight: 600 }}>{na.text}</div>
+          </div>
+          {na.due && <div style={{ marginLeft: "auto", fontSize: 12, color: new Date(na.due) < new Date() ? COLORS.danger : COLORS.textLight, fontWeight: 600 }}>{na.due}</div>}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: `1px solid ${COLORS.border}` }}>
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => safeSetTab(t.key)} style={{ background: "none", border: "none", cursor: "pointer", padding: "8px 16px", fontSize: 14, fontWeight: 600, color: tab === t.key ? COLORS.primary : COLORS.textLight, borderBottom: tab === t.key ? `2px solid ${COLORS.primary}` : "2px solid transparent", marginBottom: -1 }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "mtg" && (
+        <MtgTab mtgs={mtgs} clientId={project.id} onAddMtg={(_, mtg) => addMtg(mtg)} onUpdateMtg={(_, i, u) => updateMtg(i, u)} onDeleteMtg={(_, i) => deleteMtg(i)}
+          onAddTodoFromAction={text => addTodo({ text, owners: [], owner: "", due: "", memo: "", done: false })}
+        />
+      )}
+
+      {tab === "materials" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {materials.map((m, i) => (
+            <MaterialCard key={i} material={m} onSave={updated => updateMaterial(i, updated)} onDelete={() => deleteMaterial(i)} />
+          ))}
+          {showMaterialForm
+            ? <AddMaterialForm onAdd={m => { addMaterial(m); setShowMaterialForm(false); }} onCancel={() => setShowMaterialForm(false)} />
+            : <button onClick={() => setShowMaterialForm(true)} style={{ background: "none", border: `1px dashed ${COLORS.border}`, borderRadius: 8, padding: "10px", cursor: "pointer", color: COLORS.textLight, fontSize: 13, width: "100%" }}>+ 資料を追加</button>
+          }
+        </div>
+      )}
+
+      {tab === "todos" && (
+        <div>
+          {pendingTodos.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.textLight, marginBottom: 8, letterSpacing: 0.5 }}>未完了</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {pendingTodos.map((t, i) => {
+                  const realIdx = todos.indexOf(t);
+                  return (
+                    <TodoCard key={i} todo={t} clientTodos={todos}
+                      onToggle={() => toggleTodo(realIdx)}
+                      onSave={updated => updateTodo(realIdx, updated)}
+                      onSetNextAction={() => setNextAction(realIdx)}
+                      onDelete={() => deleteTodo(realIdx)}
+                      done={false}
+                      isNextAction={na && todos.indexOf(na) === realIdx}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {doneTodos.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.textLight, marginBottom: 8, letterSpacing: 0.5 }}>完了済み</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {doneTodos.map((t, i) => {
+                  const realIdx = todos.indexOf(t);
+                  return (
+                    <TodoCard key={i} todo={t} clientTodos={todos}
+                      onToggle={() => toggleTodo(realIdx)}
+                      onSave={updated => updateTodo(realIdx, updated)}
+                      onSetNextAction={() => {}}
+                      onDelete={() => deleteTodo(realIdx)}
+                      done={true}
+                      isNextAction={false}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {showTodoForm
+            ? <AddTodoForm onAdd={t => { addTodo(t); setShowTodoForm(false); }} onCancel={() => setShowTodoForm(false)} />
+            : <button onClick={() => setShowTodoForm(true)} style={{ background: "none", border: `1px dashed ${COLORS.border}`, borderRadius: 8, padding: "10px", cursor: "pointer", color: COLORS.textLight, fontSize: 13, width: "100%" }}>+ ToDoを追加</button>
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClient, onRestoreClient, onUpdateClient, onUpdateProject, onAddClient, onSelectPotential, showArchive, onToggleArchive }) {
+  const hasClients = project.hasClients !== false;
+
+  // クライアントなしモードの場合はProjectWorkspaceを表示
+  if (!hasClients) {
+    return (
+      <ProjectWorkspace
+        project={project}
+        onBack={onBack}
+        onUpdateProject={onUpdateProject}
+      />
+    );
+  }
   const [showClientForm, setShowClientForm] = useState(false);
   const [newClient, setNewClient] = useState({ name: "", status: "進行中", owner: OWNERS[0], phase: "", summary: "", info: { industry: "", country: "", contacts: [] } });
   const STATUS_ORDER = { "進行中": 0, "提案中": 1, "連絡待ち": 2 };
@@ -958,7 +1140,7 @@ function PotentialSection({ projectId, potentials, onAdd, onUpdate, onPromote, o
                     <button onClick={() => { if (window.confirm(`「${p.name}」をアーカイブしますか？`)) onArchive(p.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.textLight, fontSize: 16, padding: "0 4px" }}>🗑</button>
                     {onSelect && <span onClick={() => onSelect(p)} style={{ color: COLORS.primary, fontSize: 18, cursor: "pointer" }}>›</span>}
                   </div>
-                  {p.summary && <div style={{ fontSize: 13, color: COLORS.textLight, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${COLORS.border}` }}>{p.summary}</div>}
+                  {p.summary && <div style={{ fontSize: 13, color: COLORS.textLight, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${COLORS.border}`, whiteSpace: "pre-wrap" }}>{p.summary}</div>}
                 </Card>
               )
           ))}
@@ -1129,7 +1311,7 @@ function SummaryEdit({ value, onSave }) {
     );
   }
   return (
-    <div onClick={() => { setDraft(value || ""); setEditing(true); }} style={{ padding: "10px 14px", background: COLORS.primaryLight, borderRadius: 6, fontSize: 13, color: value ? COLORS.text : COLORS.textLight, borderLeft: `3px solid ${COLORS.primary}`, cursor: "pointer" }}>
+    <div onClick={() => { setDraft(value || ""); setEditing(true); }} style={{ padding: "10px 14px", background: COLORS.primaryLight, borderRadius: 6, fontSize: 13, color: value ? COLORS.text : COLORS.textLight, borderLeft: `3px solid ${COLORS.primary}`, cursor: "pointer", whiteSpace: "pre-wrap" }}>
       {value || "クリックして概要を入力..."}
     </div>
   );
@@ -1196,7 +1378,7 @@ function MaterialCard({ material, onSave, onDelete }) {
             {material.url && <span style={{ fontSize: 11, color: COLORS.primary }}>🔗 リンクあり</span>}
           </div>
           <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>{material.date}</div>
-          {material.memo && <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 6, background: COLORS.surface, borderRadius: 4, padding: "5px 8px" }}>{material.memo}</div>}
+          {material.memo && <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 6, background: COLORS.surface, borderRadius: 4, padding: "5px 8px", whiteSpace: "pre-wrap" }}>{material.memo}</div>}
         </div>
         <button onClick={e => { e.stopPropagation(); if (window.confirm("この資料を削除しますか？")) onDelete(); }} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.textLight, fontSize: 16, padding: "0 4px", flexShrink: 0 }} title="削除">🗑</button>
       </div>
@@ -1284,7 +1466,7 @@ function TodoCard({ todo, todoIndex, clientTodos, onToggle, onSave, onSetNextAct
                 <span style={{ fontSize: 10, background: "rgba(0,181,173,0.2)", color: COLORS.primary, borderRadius: 4, padding: "1px 6px", fontWeight: 700, letterSpacing: 0.3 }}>NEXT</span>
               )}
             </div>
-            {todo.memo && <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 4, background: COLORS.surface, borderRadius: 4, padding: "4px 8px" }}>{todo.memo}</div>}
+            {todo.memo && <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 4, background: COLORS.surface, borderRadius: 4, padding: "4px 8px", whiteSpace: "pre-wrap" }}>{todo.memo}</div>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
             <Avatar name={todo.owner || "?"} />
@@ -1635,7 +1817,7 @@ function MtgCard({ mtg, onSave, onDelete, onAddTodo }) {
           <button onClick={() => { if (window.confirm("このMTGログを削除しますか？")) onDelete(); }} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.textLight, fontSize: 16, padding: "0 4px" }} title="削除">🗑</button>
         </div>
       </div>
-      {mtg.content && <div onClick={() => setEditing(true)} style={{ fontSize: 13, color: COLORS.text, lineHeight: 1.7, marginBottom: 12, cursor: "pointer" }}>{mtg.content}</div>}
+      {mtg.content && <div onClick={() => setEditing(true)} style={{ fontSize: 13, color: COLORS.text, lineHeight: 1.7, marginBottom: 12, cursor: "pointer", whiteSpace: "pre-wrap" }}>{mtg.content}</div>}
       {(mtg.decisions?.length > 0 || mtg.actions?.length > 0 || mtg.nextAgenda?.length > 0) && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {mtg.decisions?.length > 0 && (
