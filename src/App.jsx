@@ -2300,7 +2300,7 @@ export default function App() {
       {isLoading && (
         <div style={{ position: "fixed", inset: 0, background: COLORS.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, gap: 16 }}>
           <div style={{ width: 48, height: 48, background: COLORS.primary, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ color: "#0F1117", fontSize: 22, fontWeight: 700 }}>P</span>
+            <span style={{ color: "#0F1117", fontSize: 22, fontWeight: 700 }}>岡</span>
           </div>
           <div style={{ fontSize: 14, color: COLORS.textLight }}>読み込み中...</div>
         </div>
@@ -2309,7 +2309,7 @@ export default function App() {
       <div style={{ background: COLORS.surface, borderBottom: `1px solid ${COLORS.border}`, padding: "0 32px", display: "flex", alignItems: "center", height: 56, gap: 16, position: "sticky", top: 0, zIndex: 100 }}>
         <div onClick={goToTop} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
           <div style={{ width: 28, height: 28, background: COLORS.primary, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ color: "#0F1117", fontSize: 14, fontWeight: 700 }}>P</span>
+            <span style={{ color: "#0F1117", fontSize: 14, fontWeight: 700 }}>岡</span>
           </div>
           <span style={{ fontWeight: 700, fontSize: 16, color: COLORS.text }}>Okayama CRM</span>
           <span style={{ fontSize: 10, background: COLORS.primaryLight, color: COLORS.primary, padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>dataSpring</span>
