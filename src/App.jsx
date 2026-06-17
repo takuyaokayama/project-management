@@ -197,6 +197,117 @@ function useWindowWidth() {
   return width;
 }
 
+// ── フィルタービュー ──
+function FilterView({ filterType, projects, clients, onBack, onSelectClient }) {
+  const now = new Date();
+  const oneWeekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const FILTER_CONFIG = {
+    active:   { label: "進行中クライアント", color: COLORS.primary },
+    proposal: { label: "提案中クライアント", color: COLORS.warning },
+    overdue:  { label: "期限超過TODO", color: COLORS.danger },
+  };
+  const cfg = FILTER_CONFIG[filterType];
+
+  // クライアントフィルター（active / proposal）
+  const filteredClients = filterType !== "overdue"
+    ? clients.filter(c => !c.archived && !c.isPotential && (
+        filterType === "active" ? c.status === "進行中" : c.status === "提案中"
+      ))
+    : [];
+
+  // 期限超過TODOフィルター
+  const overdueTodos = filterType === "overdue"
+    ? (() => {
+        const items = [];
+        clients.filter(c => !c.archived && !c.isPotential).forEach(client => {
+          const project = projects.find(p => p.id === client.projectId);
+          (client.todos || []).filter(t => !t.done && t.due && new Date(t.due) < now).forEach(todo => {
+            items.push({ todo, client, project });
+          });
+        });
+        return items.sort((a, b) => new Date(a.todo.due) - new Date(b.todo.due));
+      })()
+    : [];
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+        <BackButton onClick={onBack} />
+        <Breadcrumb items={[
+          { label: "プロジェクト一覧", onClick: onBack },
+          { label: cfg.label },
+        ]} />
+      </div>
+
+      {/* クライアント一覧フィルター */}
+      {filterType !== "overdue" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filteredClients.length === 0 && (
+            <div style={{ fontSize: 14, color: COLORS.textLight, textAlign: "center", padding: 32 }}>該当するクライアントはありません</div>
+          )}
+          {filteredClients.map(client => {
+            const project = projects.find(p => p.id === client.projectId);
+            const na = getNextAction(client.todos);
+            const naOverdue = na?.due && new Date(na.due) < now;
+            return (
+              <Card key={client.id} onClick={() => onSelectClient(client)} style={{ padding: "16px 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                  <div style={{ flex: "0 0 180px" }}>
+                    <div style={{ fontWeight: 700, color: COLORS.text, fontSize: 15 }}>{client.name}</div>
+                    <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>{project?.name}</div>
+                  </div>
+                  <Badge status={client.status} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Avatar name={client.owner} />
+                    <span style={{ fontSize: 13, color: COLORS.textLight }}>{client.owner}</span>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    {na && <>
+                      <div style={{ fontSize: 13, color: COLORS.text }}>{na.text}</div>
+                      {na.due && <div style={{ fontSize: 11, marginTop: 2, color: naOverdue ? COLORS.danger : COLORS.textLight }}>期限: {na.due}</div>}
+                    </>}
+                  </div>
+                  <span style={{ color: COLORS.primary, fontSize: 18 }}>›</span>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 期限超過TODOフィルター */}
+      {filterType === "overdue" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {overdueTodos.length === 0 && (
+            <div style={{ fontSize: 14, color: COLORS.textLight, textAlign: "center", padding: 32 }}>期限超過のTODOはありません</div>
+          )}
+          {overdueTodos.map(({ todo, client, project }, i) => {
+            const diffDays = Math.ceil((now - new Date(todo.due)) / (1000 * 60 * 60 * 24));
+            return (
+              <Card key={i} onClick={() => onSelectClient(client)} style={{ padding: "14px 18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 16 }}>🔴</span>
+                  <div style={{ flex: 1, minWidth: 120 }}>
+                    <div style={{ fontSize: 14, color: COLORS.text, fontWeight: 500 }}>{todo.text}</div>
+                    <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>{project?.name} › {client.name}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                    <Avatar name={todo.owner} />
+                    <span style={{ fontSize: 12, color: COLORS.danger, fontWeight: 600 }}>{diffDays}日超過</span>
+                    <span style={{ fontSize: 12, color: COLORS.textLight }}>{todo.due}</span>
+                    <span style={{ color: COLORS.primary, fontSize: 18 }}>›</span>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectCard({ project, stats, onSelect, onArchive, onSave }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(project);
@@ -281,7 +392,7 @@ function ProjectCard({ project, stats, onSelect, onArchive, onSave }) {
   );
 }
 
-function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreProject, onUpdateProject, onAddProject, showArchive, onToggleArchive }) {
+function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreProject, onUpdateProject, onAddProject, showArchive, onToggleArchive, onFilterClick, onClientClick }) {
   const [showForm, setShowForm] = useState(false);
   const [newPJ, setNewPJ] = useState({ name: "", description: "", status: "進行中", owner: OWNERS[0] });
   const [showDeadlines, setShowDeadlines] = useState(true);
@@ -313,14 +424,15 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
         {[
-          { label: "総プロジェクト", value: activeProjects.length, color: COLORS.primary },
-          { label: "進行中クライアント", value: totalActive, color: COLORS.primary },
-          { label: "提案中", value: totalProposal, color: COLORS.warning },
-          { label: "期限超過", value: totalOverdue, color: COLORS.danger },
+          { label: "総プロジェクト", value: activeProjects.length, color: COLORS.primary, filter: null },
+          { label: "進行中クライアント", value: totalActive, color: COLORS.primary, filter: "active" },
+          { label: "提案中", value: totalProposal, color: COLORS.warning, filter: "proposal" },
+          { label: "期限超過", value: totalOverdue, color: COLORS.danger, filter: "overdue" },
         ].map(s => (
-          <Card key={s.label} style={{ textAlign: "center", padding: "16px 12px" }}>
+          <Card key={s.label} onClick={s.filter ? () => onFilterClick(s.filter) : undefined} style={{ textAlign: "center", padding: "16px 12px", cursor: s.filter ? "pointer" : "default" }}>
             <div style={{ fontSize: 28, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
             <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 4 }}>{s.label}</div>
+            {s.filter && <div style={{ fontSize: 10, color: COLORS.textLight, marginTop: 4 }}>クリックで詳細 ›</div>}
           </Card>
         ))}
       </div>
@@ -350,7 +462,10 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
                 const isOD = dueDate < now;
                 const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
                 return (
-                  <div key={i} style={{ background: COLORS.card, border: `1px solid ${isOD ? "rgba(252,129,129,0.3)" : "rgba(246,173,85,0.3)"}`, borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <div key={i} onClick={() => onClientClick(client)} style={{ background: COLORS.card, border: `1px solid ${isOD ? "rgba(252,129,129,0.3)" : "rgba(246,173,85,0.3)"}`, borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", cursor: "pointer", transition: "border-color 0.15s" }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = isOD ? COLORS.danger : COLORS.warning}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = isOD ? "rgba(252,129,129,0.3)" : "rgba(246,173,85,0.3)"}
+                  >
                     <span style={{ fontSize: 14 }}>{isOD ? "🔴" : "🟡"}</span>
                     <div style={{ flex: 1, minWidth: 120 }}>
                       <div style={{ fontSize: 13, color: COLORS.text, fontWeight: 500 }}>{todo.text}</div>
@@ -1664,6 +1779,8 @@ export default function App() {
   const [projects, setProjects] = useState(PROJECTS_INIT);
   const [clients, setClients] = useState(CLIENTS_INIT);
   const [view, setView] = useState("projects");
+  const [filterType, setFilterType] = useState(null);
+  const prevViewRef = useRef("projects");
   const [isLoading, setIsLoading] = useState(true);
   const nextProjectId = useRef(1);
   const nextClientId = useRef(1);
@@ -1710,10 +1827,18 @@ export default function App() {
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [projects, clients]);
 
-  function goToProject(project) { setSelectedProject(project); setView("project"); setShowArchive(false); }
-  function goToClient(client) { setSelectedClient(client); setView("client"); }
-  function goToTop() { setSelectedProject(null); setSelectedClient(null); setView("projects"); setShowArchive(false); }
-  function goBackToProject() { setSelectedClient(null); setView("project"); }
+  function goToProject(project) { setSelectedProject(project); prevViewRef.current = "projects"; setView("project"); setShowArchive(false); }
+  function goToClient(client) { setSelectedClient(client); prevViewRef.current = view; setView("client"); }
+  function goToTop() { setSelectedProject(null); setSelectedClient(null); setView("projects"); setShowArchive(false); setFilterType(null); }
+  function goBackToProject() {
+    setSelectedClient(null);
+    if (prevViewRef.current === "filter") {
+      setView("filter");
+    } else {
+      setView("project");
+    }
+  }
+  function goToFilter(type) { setFilterType(type); setView("filter"); }
 
   function archiveProject(id) {
     setProjects(prev => prev.map(p => p.id === id ? { ...p, archived: true } : p));
@@ -1897,8 +2022,25 @@ export default function App() {
               onAddProject={addProject}
               showArchive={showArchive}
               onToggleArchive={() => setShowArchive(v => !v)}
+              onFilterClick={goToFilter}
+              onClientClick={client => {
+                const project = projects.find(p => p.id === client.projectId);
+                if (project) { setSelectedProject(project); goToClient(client); }
+              }}
             />
           </>
+        )}
+        {view === "filter" && (
+          <FilterView
+            filterType={filterType}
+            projects={projects}
+            clients={clients}
+            onBack={goToTop}
+            onSelectClient={client => {
+              const project = projects.find(p => p.id === client.projectId);
+              if (project) { setSelectedProject(project); goToClient(client); }
+            }}
+          />
         )}
         {view === "project" && selectedProject && (
           <ProjectDetail
