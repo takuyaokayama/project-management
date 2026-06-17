@@ -728,6 +728,23 @@ function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClie
               <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>概要</div>
               <textarea value={newClient.summary} onChange={e => setNewClient(d => ({ ...d, summary: e.target.value }))} rows={2} style={inputStyle({ resize: "vertical" })} />
             </div>
+
+            {/* 先方担当者 */}
+            <div>
+              <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 8 }}>先方担当者</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {newClient.info.contacts.map((c, i) => (
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8, alignItems: "center" }}>
+                    <input value={c.name} onChange={e => setNewClient(d => ({ ...d, info: { ...d.info, contacts: d.info.contacts.map((ct, idx) => idx === i ? { ...ct, name: e.target.value } : ct) } }))} placeholder="氏名" style={inputStyle()} />
+                    <input value={c.title} onChange={e => setNewClient(d => ({ ...d, info: { ...d.info, contacts: d.info.contacts.map((ct, idx) => idx === i ? { ...ct, title: e.target.value } : ct) } }))} placeholder="役職" style={inputStyle()} />
+                    <input value={c.email} onChange={e => setNewClient(d => ({ ...d, info: { ...d.info, contacts: d.info.contacts.map((ct, idx) => idx === i ? { ...ct, email: e.target.value } : ct) } }))} placeholder="メール" style={inputStyle()} />
+                    <button onClick={() => setNewClient(d => ({ ...d, info: { ...d.info, contacts: d.info.contacts.filter((_, idx) => idx !== i) } }))} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: COLORS.danger, fontSize: 13 }}>✕</button>
+                  </div>
+                ))}
+                <button onClick={() => setNewClient(d => ({ ...d, info: { ...d.info, contacts: [...d.info.contacts, { name: "", title: "", email: "" }] } }))} style={{ background: "none", border: `1px dashed ${COLORS.border}`, borderRadius: 6, padding: "6px", cursor: "pointer", color: COLORS.textLight, fontSize: 12, textAlign: "left" }}>+ 担当者を追加</button>
+              </div>
+            </div>
+
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button onClick={() => { setShowClientForm(false); setNewClient({ name: "", status: "進行中", owner: OWNERS[0], phase: "", summary: "", info: { industry: "", country: "", contacts: [] } }); }} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer", color: COLORS.textLight, fontSize: 13 }}>キャンセル</button>
               <button onClick={() => { if (newClient.name.trim()) { onAddClient({ ...newClient, projectId: project.id }); setShowClientForm(false); setNewClient({ name: "", status: "進行中", owner: OWNERS[0], phase: "", summary: "", info: { industry: "", country: "", contacts: [] } }); } }} style={{ background: COLORS.primary, border: "none", borderRadius: 6, padding: "5px 14px", cursor: "pointer", color: "#0F1117", fontSize: 13, fontWeight: 700 }}>追加</button>
@@ -1529,7 +1546,7 @@ function MtgForm({ initial, onSave, onCancel, saveLabel = "追加" }) {
   );
 }
 
-function MtgCard({ mtg, onSave, onDelete }) {
+function MtgCard({ mtg, onSave, onDelete, onAddTodo }) {
   const [editing, setEditing] = useState(false);
 
   if (editing) {
@@ -1570,8 +1587,18 @@ function MtgCard({ mtg, onSave, onDelete }) {
             <div style={{ background: COLORS.surface, borderRadius: 6, padding: "10px 14px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.primary, marginBottom: 6, letterSpacing: 0.5 }}>⚡ アクションアイテム</div>
               {mtg.actions.map((a, j) => (
-                <div key={j} style={{ fontSize: 13, color: COLORS.text, display: "flex", gap: 6, marginBottom: 2 }}>
-                  <span style={{ color: COLORS.primary }}>•</span>{a}
+                <div key={j} style={{ fontSize: 13, color: COLORS.text, display: "flex", gap: 6, marginBottom: 4, alignItems: "center" }}>
+                  <span style={{ color: COLORS.primary }}>•</span>
+                  <span style={{ flex: 1 }}>{a}</span>
+                  {onAddTodo && (
+                    <button
+                      onClick={e => { e.stopPropagation(); onAddTodo(a); }}
+                      title="TODOに追加"
+                      style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 4, padding: "1px 7px", cursor: "pointer", color: COLORS.textLight, fontSize: 11, flexShrink: 0, whiteSpace: "nowrap" }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = COLORS.primary; e.currentTarget.style.color = COLORS.primary; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.textLight; }}
+                    >+ TODO</button>
+                  )}
                 </div>
               ))}
             </div>
@@ -1592,7 +1619,7 @@ function MtgCard({ mtg, onSave, onDelete }) {
   );
 }
 
-function MtgTab({ mtgs, clientId, onAddMtg, onUpdateMtg, onDeleteMtg }) {
+function MtgTab({ mtgs, clientId, onAddMtg, onUpdateMtg, onDeleteMtg, onAddTodoFromAction }) {
   const [showForm, setShowForm] = useState(false);
   const sorted = [...mtgs].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -1602,6 +1629,7 @@ function MtgTab({ mtgs, clientId, onAddMtg, onUpdateMtg, onDeleteMtg }) {
         <MtgCard key={i} mtg={mtg}
           onSave={updated => onUpdateMtg(clientId, mtgs.indexOf(mtg), updated)}
           onDelete={() => onDeleteMtg(clientId, mtgs.indexOf(mtg))}
+          onAddTodo={onAddTodoFromAction ? text => onAddTodoFromAction(text) : null}
         />
       ))}
       {showForm
@@ -1816,7 +1844,11 @@ function ClientDetail({ client, project, onBackToProject, onBackToTop, onArchive
       </div>
 
       {tab === "mtg" && (
-        <MtgTab mtgs={client.mtgs} clientId={client.id} onAddMtg={onAddMtg} onUpdateMtg={onUpdateMtg} onDeleteMtg={onDeleteMtg} onDirty={v => { isDirtyRef.current = v; }} />
+        <MtgTab mtgs={client.mtgs} clientId={client.id} onAddMtg={onAddMtg} onUpdateMtg={onUpdateMtg} onDeleteMtg={onDeleteMtg}
+          onAddTodoFromAction={text => {
+            onAddTodo(client.id, { text, owners: [], owner: "", due: "", memo: "", done: false });
+          }}
+        />
       )}
 
       {tab === "materials" && (
@@ -2148,6 +2180,15 @@ export default function App() {
     setClients(prev => prev.map(c => c.id === id ? { ...c, archived: false } : c));
   }
 
+  function sortTodos(todos) {
+    return [...todos].sort((a, b) => {
+      if (!a.due && !b.due) return 0;
+      if (!a.due) return 1;
+      if (!b.due) return -1;
+      return new Date(a.due) - new Date(b.due);
+    });
+  }
+
   function toggleTodo(clientId, todoIndex) {
     setClients(prev => prev.map(c => {
       if (c.id !== clientId) return c;
@@ -2164,7 +2205,7 @@ export default function App() {
 
   function addTodo(clientId, todo) {
     setClients(prev => prev.map(c =>
-      c.id === clientId ? { ...c, todos: [...c.todos, todo], lastUpdated: today() } : c
+      c.id === clientId ? { ...c, todos: sortTodos([...c.todos, todo]), lastUpdated: today() } : c
     ));
   }
 
@@ -2179,7 +2220,7 @@ export default function App() {
   function updateTodo(clientId, index, updated) {
     setClients(prev => prev.map(c => {
       if (c.id !== clientId) return c;
-      const newTodos = c.todos.map((t, i) => i === index ? updated : t);
+      const newTodos = sortTodos(c.todos.map((t, i) => i === index ? updated : t));
       return { ...c, todos: newTodos, lastUpdated: today() };
     }));
   }
