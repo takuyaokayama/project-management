@@ -610,6 +610,75 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
   );
 }
 
+function ClientRowCard({ client, onSelect, onSave, onArchive, isSmall }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ name: client.name, phase: client.phase, status: client.status, owner: client.owner });
+  const na = getNextAction(client.todos);
+  const naOverdue = na?.due && new Date(na.due) < new Date();
+
+  if (editing) {
+    return (
+      <Card style={{ padding: "14px 16px", border: `1px solid ${COLORS.primary}` }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 3 }}>クライアント名</div>
+            <input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={inputStyle()} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 3 }}>フェーズ</div>
+            <input value={draft.phase} onChange={e => setDraft(d => ({ ...d, phase: e.target.value }))} style={inputStyle()} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 3 }}>ステータス</div>
+            <select value={draft.status} onChange={e => setDraft(d => ({ ...d, status: e.target.value }))} style={inputStyle()}>
+              {Object.keys(STATUS_CONFIG).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 3 }}>担当者</div>
+            <select value={draft.owner} onChange={e => setDraft(d => ({ ...d, owner: e.target.value }))} style={inputStyle()}>
+              {OWNERS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+          <button onClick={() => { setDraft({ name: client.name, phase: client.phase, status: client.status, owner: client.owner }); setEditing(false); }} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer", color: COLORS.textLight, fontSize: 12 }}>キャンセル</button>
+          <button onClick={() => { onSave(draft); setEditing(false); }} style={{ background: COLORS.primary, border: "none", borderRadius: 6, padding: "4px 12px", cursor: "pointer", color: "#0F1117", fontSize: 12, fontWeight: 700 }}>保存</button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card style={{ padding: "14px 16px", cursor: "pointer" }} onClick={() => setEditing(true)}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ flex: "0 0 160px" }}>
+          <div style={{ fontWeight: 700, color: COLORS.text, fontSize: 14 }}>{client.name}</div>
+          <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>{client.phase}</div>
+        </div>
+        <div style={{ flex: "0 0 76px" }}><Badge status={client.status} /></div>
+        <div style={{ flex: "0 0 90px", display: "flex", alignItems: "center", gap: 5 }}>
+          <Avatar name={client.owner} />
+          <span style={{ fontSize: 12, color: COLORS.textLight }}>{client.owner}</span>
+        </div>
+        <div style={{ flex: 1, minWidth: 100 }}>
+          {na
+            ? <>
+                <div style={{ fontSize: 13, color: COLORS.text }}>{na.text}</div>
+                {na.due && <div style={{ fontSize: 11, marginTop: 2, color: naOverdue ? COLORS.danger : COLORS.textLight }}>期限: {na.due}</div>}
+              </>
+            : <div style={{ fontSize: 12, color: COLORS.textLight }}>—</div>
+          }
+        </div>
+        <div style={{ display: "flex", flexDirection: isSmall ? "column" : "row", alignItems: isSmall ? "flex-end" : "center", gap: isSmall ? 4 : 0, flexShrink: 0 }}>
+          <span onClick={e => { e.stopPropagation(); onSelect(); }} style={{ color: COLORS.primary, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>›</span>
+          <ArchiveButton onArchive={e => { onArchive(); }} />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 // ── 画面2: プロジェクト詳細 ──
 function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClient, onRestoreClient, onUpdateClient, onUpdateProject, onAddClient, onSelectPotential, showArchive, onToggleArchive }) {
   const [showClientForm, setShowClientForm] = useState(false);
@@ -658,38 +727,14 @@ function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClie
 
       <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.textLight, marginBottom: 10, letterSpacing: 0.5 }}>クライアント ({activeClients.length})</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {activeClients.map(client => {
-          const na = getNextAction(client.todos);
-          const naOverdue = na?.due && new Date(na.due) < new Date();
-          return (
-            <Card key={client.id} style={{ padding: "14px 16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <div onClick={() => onSelectClient(client)} style={{ flex: "0 0 160px", cursor: "pointer" }}>
-                  <div style={{ fontWeight: 700, color: COLORS.text, fontSize: 14 }}>{client.name}</div>
-                  <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>{client.phase}</div>
-                </div>
-                <div style={{ flex: "0 0 76px" }}><Badge status={client.status} /></div>
-                <div style={{ flex: "0 0 90px", display: "flex", alignItems: "center", gap: 5 }}>
-                  <Avatar name={client.owner} />
-                  <span style={{ fontSize: 12, color: COLORS.textLight }}>{client.owner}</span>
-                </div>
-                <div onClick={() => onSelectClient(client)} style={{ flex: 1, minWidth: 100, cursor: "pointer" }}>
-                  {na
-                    ? <>
-                        <div style={{ fontSize: 13, color: COLORS.text }}>{na.text}</div>
-                        {na.due && <div style={{ fontSize: 11, marginTop: 2, color: naOverdue ? COLORS.danger : COLORS.textLight }}>期限: {na.due}</div>}
-                      </>
-                    : <div style={{ fontSize: 12, color: COLORS.textLight }}>—</div>
-                  }
-                </div>
-                <div style={{ display: "flex", flexDirection: isSmall ? "column" : "row", alignItems: isSmall ? "flex-end" : "center", gap: isSmall ? 4 : 0, flexShrink: 0 }}>
-                  <span onClick={() => onSelectClient(client)} style={{ color: COLORS.primary, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>›</span>
-                  <ArchiveButton onArchive={() => onArchiveClient(client.id)} />
-                </div>
-              </div>
-            </Card>
-          );
-        })}
+        {activeClients.map(client => (
+          <ClientRowCard key={client.id} client={client}
+            onSelect={() => onSelectClient(client)}
+            onSave={updated => onUpdateClient(client.id, updated)}
+            onArchive={() => onArchiveClient(client.id)}
+            isSmall={isSmall}
+          />
+        ))}
       </div>
 
       {showClientForm ? (
@@ -1302,49 +1347,71 @@ function TodoCard({ todo, todoIndex, clientTodos, onToggle, onSave, onSetNextAct
 }
 
 function AddMaterialForm({ onAdd, onCancel }) {
-  const [name, setName] = useState("");
-  const [type, setType] = useState("提案");
-  const [url, setUrl] = useState("");
-  const [memo, setMemo] = useState("");
-  const [date, setDate] = useState(today());
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState("");
+  const [files, setFiles] = useState([{ name: "", type: "", url: "", memo: "", date: today(), uploading: false, uploadError: "", done: false }]);
   const [isDragging, setIsDragging] = useState(false);
   const gasReady = GAS_URL !== "aaaaaaaaaa";
 
-  async function handleFile(file) {
-    if (!file) return;
-    setName(file.name);
-    if (!gasReady) { setUploadError("GAS未設定のためアップロードできません"); return; }
-    setUploading(true);
-    setUploadError("");
+  async function handleFile(file, index) {
+    setFiles(prev => prev.map((f, i) => i === index ? { ...f, name: file.name, uploading: true, uploadError: "", done: false } : f));
+    if (!gasReady) {
+      setFiles(prev => prev.map((f, i) => i === index ? { ...f, uploading: false, uploadError: "GAS未設定のためアップロードできません" } : f));
+      return;
+    }
     try {
       const result = await uploadFileToGAS(file);
-      setUrl(result.viewUrl);
-      setUploadError("");
+      setFiles(prev => prev.map((f, i) => i === index ? { ...f, url: result.viewUrl, uploading: false, done: true } : f));
     } catch (err) {
-      setUploadError(`アップロード失敗: ${err.message}`);
-    } finally {
-      setUploading(false);
+      setFiles(prev => prev.map((f, i) => i === index ? { ...f, uploading: false, uploadError: `失敗: ${err.message}` } : f));
     }
   }
-
-  function handleFileSelect(e) { handleFile(e.target.files[0]); }
 
   function handleDrop(e) {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
+    const dropped = Array.from(e.dataTransfer.files);
+    if (dropped.length === 0) return;
+    const newEntries = dropped.map(file => ({ name: file.name, type: "", url: "", memo: "", date: today(), uploading: false, uploadError: "", done: false, _file: file }));
+    setFiles(prev => {
+      const base = prev.filter(f => f.name);
+      const updated = [...base, ...newEntries];
+      newEntries.forEach((entry, i) => {
+        const idx = base.length + i;
+        setTimeout(() => handleFile(entry._file, idx), 0);
+      });
+      return updated;
+    });
   }
 
-  function handleDragOver(e) { e.preventDefault(); setIsDragging(true); }
-  function handleDragLeave() { setIsDragging(false); }
+  function handleFileSelect(e) {
+    const selected = Array.from(e.target.files);
+    if (selected.length === 0) return;
+    const newEntries = selected.map(file => ({ name: file.name, type: "", url: "", memo: "", date: today(), uploading: false, uploadError: "", done: false }));
+    setFiles(prev => {
+      const base = prev.filter(f => f.name);
+      const updated = [...base, ...newEntries];
+      selected.forEach((file, i) => {
+        const idx = base.length + i;
+        setTimeout(() => handleFile(file, idx), 0);
+      });
+      return updated;
+    });
+  }
+
+  function addManual() {
+    setFiles(prev => [...prev, { name: "", type: "", url: "", memo: "", date: today(), uploading: false, uploadError: "", done: false }]);
+  }
+
+  function removeFile(index) {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  }
 
   function handleSubmit() {
-    if (!name.trim()) return;
-    onAdd({ name: name.trim(), type, url: url.trim(), memo: memo.trim(), date });
+    const valid = files.filter(f => f.name.trim());
+    if (valid.length === 0) return;
+    valid.forEach(f => onAdd({ name: f.name.trim(), type: f.type.trim(), url: f.url.trim(), memo: f.memo.trim(), date: f.date }));
   }
+
+  const anyUploading = files.some(f => f.uploading);
 
   return (
     <Card style={{ padding: "18px 20px", border: `1px solid ${COLORS.primary}` }}>
@@ -1353,60 +1420,61 @@ function AddMaterialForm({ onAdd, onCancel }) {
         {/* ドラッグ＆ドロップエリア */}
         <div
           onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          style={{
-            background: isDragging ? "rgba(0,181,173,0.08)" : COLORS.surface,
-            borderRadius: 8, padding: "20px 14px",
-            border: `2px dashed ${isDragging ? COLORS.primary : COLORS.border}`,
-            textAlign: "center", transition: "all 0.15s",
-          }}
+          onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          style={{ background: isDragging ? "rgba(0,181,173,0.08)" : COLORS.surface, borderRadius: 8, padding: "16px 14px", border: `2px dashed ${isDragging ? COLORS.primary : COLORS.border}`, textAlign: "center", transition: "all 0.15s" }}
         >
-          {uploading ? (
-            <div style={{ fontSize: 13, color: COLORS.textLight }}>⟳ アップロード中...</div>
-          ) : url && !uploadError ? (
-            <div style={{ fontSize: 13, color: COLORS.success }}>✓ アップロード完了</div>
-          ) : (
-            <>
-              <div style={{ fontSize: 24, marginBottom: 6 }}>📂</div>
-              <div style={{ fontSize: 13, color: COLORS.textLight, marginBottom: 8 }}>
-                ここにファイルをドロップ
-              </div>
-              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 14px", cursor: "pointer", fontSize: 12, color: COLORS.text }}>
-                <span>📎</span>
-                <span>ファイルを選択</span>
-                <input type="file" onChange={handleFileSelect} style={{ display: "none" }} disabled={uploading} />
-              </label>
-            </>
-          )}
-          {uploadError && <div style={{ fontSize: 12, color: COLORS.danger, marginTop: 6 }}>{uploadError}</div>}
+          <div style={{ fontSize: 22, marginBottom: 6 }}>📂</div>
+          <div style={{ fontSize: 13, color: COLORS.textLight, marginBottom: 8 }}>ここにファイルをドロップ（複数可）</div>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 14px", cursor: "pointer", fontSize: 12, color: COLORS.text }}>
+            <span>📎</span><span>ファイルを選択</span>
+            <input type="file" multiple onChange={handleFileSelect} style={{ display: "none" }} />
+          </label>
         </div>
 
-        <div>
-          <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>ファイル名・タイトル *</div>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="例: 提案書_v3.pptx" style={inputStyle()} />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-          <div>
-            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>種別</div>
-            <input value={type} onChange={e => setType(e.target.value)} placeholder="例: 提案、契約、技術" style={inputStyle()} />
+        {/* ファイル一覧 */}
+        {files.map((f, i) => (
+          <div key={i} style={{ background: COLORS.surface, borderRadius: 8, padding: "12px 14px", border: `1px solid ${f.uploadError ? COLORS.danger : f.done ? COLORS.success : COLORS.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <span style={{ fontSize: 12, color: f.done ? COLORS.success : f.uploadError ? COLORS.danger : COLORS.textLight }}>
+                {f.uploading ? "⟳" : f.done ? "✓" : f.uploadError ? "✕" : "○"}
+              </span>
+              <span style={{ fontSize: 12, color: COLORS.textLight, flex: 1 }}>{f.name || "（未選択）"}</span>
+              <button onClick={() => removeFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.textLight, fontSize: 14 }}>✕</button>
+            </div>
+            {f.uploadError && <div style={{ fontSize: 11, color: COLORS.danger, marginBottom: 6 }}>{f.uploadError}</div>}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 6 }}>
+              <div>
+                <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 3 }}>ファイル名 *</div>
+                <input value={f.name} onChange={e => setFiles(prev => prev.map((v, idx) => idx === i ? { ...v, name: e.target.value } : v))} placeholder="例: 提案書_v1.pptx" style={inputStyle()} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 3 }}>種別</div>
+                <input value={f.type} onChange={e => setFiles(prev => prev.map((v, idx) => idx === i ? { ...v, type: e.target.value } : v))} placeholder="例: 提案、契約" style={inputStyle()} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 3 }}>日付</div>
+                <DatePicker value={f.date} onChange={v => setFiles(prev => prev.map((vv, idx) => idx === i ? { ...vv, date: v } : vv))} />
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 3 }}>URL（手動入力も可）</div>
+              <input value={f.url} onChange={e => setFiles(prev => prev.map((v, idx) => idx === i ? { ...v, url: e.target.value } : v))} placeholder="https://..." style={inputStyle()} />
+            </div>
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 3 }}>メモ</div>
+              <input value={f.memo} onChange={e => setFiles(prev => prev.map((v, idx) => idx === i ? { ...v, memo: e.target.value } : v))} placeholder="補足情報など" style={inputStyle()} />
+            </div>
           </div>
-          <div>
-            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>日付</div>
-            <DatePicker value={date} onChange={setDate} />
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>URL（手動入力も可）</div>
-            <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..." style={inputStyle()} />
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>メモ</div>
-          <textarea value={memo} onChange={e => setMemo(e.target.value)} placeholder="補足情報など" rows={2} style={inputStyle({ resize: "vertical" })} />
-        </div>
+        ))}
+
+        <button onClick={addManual} style={{ background: "none", border: `1px dashed ${COLORS.border}`, borderRadius: 6, padding: "6px", cursor: "pointer", color: COLORS.textLight, fontSize: 12, textAlign: "left" }}>+ 手動で項目を追加</button>
+
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
           <button onClick={onCancel} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "6px 14px", cursor: "pointer", color: COLORS.textLight, fontSize: 13 }}>キャンセル</button>
-          <button onClick={handleSubmit} disabled={uploading} style={{ background: uploading ? COLORS.border : COLORS.primary, border: "none", borderRadius: 6, padding: "6px 16px", cursor: uploading ? "not-allowed" : "pointer", color: "#0F1117", fontSize: 13, fontWeight: 700 }}>追加</button>
+          <button onClick={handleSubmit} disabled={anyUploading} style={{ background: anyUploading ? COLORS.border : COLORS.primary, border: "none", borderRadius: 6, padding: "6px 16px", cursor: anyUploading ? "not-allowed" : "pointer", color: "#0F1117", fontSize: 13, fontWeight: 700 }}>
+            {files.filter(f => f.name.trim()).length}件追加
+          </button>
         </div>
       </div>
     </Card>
