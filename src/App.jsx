@@ -439,7 +439,7 @@ function ProjectCard({ project, stats, onSelect, onArchive, onSave }) {
   );
 }
 
-function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreProject, onUpdateProject, onAddProject, showArchive, onToggleArchive, onFilterClick, onClientClick }) {
+function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreProject, onDeleteProject, onUpdateProject, onAddProject, showArchive, onToggleArchive, onFilterClick, onClientClick }) {
   const [showForm, setShowForm] = useState(false);
   const [newPJ, setNewPJ] = useState({ name: "", description: "", status: "進行中", owner: OWNERS[0], hasClients: true });
   const [showDeadlines, setShowDeadlines] = useState(true);
@@ -610,9 +610,10 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
                       <span style={{ fontWeight: 600, color: COLORS.textLight, fontSize: 14 }}>{p.name}</span>
                       <span style={{ fontSize: 12, color: COLORS.archive, marginLeft: 10 }}>アーカイブ済み</span>
                     </div>
-                    <button onClick={() => onRestoreProject(p.id)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: COLORS.textLight, fontSize: 12 }}>
-                      復元
-                    </button>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => onRestoreProject(p.id)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: COLORS.textLight, fontSize: 12 }}>復元</button>
+                      <button onClick={() => { if (window.confirm(`「${p.name}」を完全に削除しますか？この操作は取り消せません。`)) onDeleteProject(p.id); }} style={{ background: "none", border: `1px solid ${COLORS.danger}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: COLORS.danger, fontSize: 12 }}>削除</button>
+                    </div>
                   </div>
                 </Card>
               ))}
@@ -763,7 +764,7 @@ function ProjectWorkspace({ project, onBack, onUpdateProject }) {
             <MaterialCard key={i} material={m} onSave={updated => updateMaterial(i, updated)} onDelete={() => deleteMaterial(i)} />
           ))}
           {showMaterialForm
-            ? <AddMaterialForm onAdd={ms => { ms.forEach(m => addMaterial(m)); setShowMaterialForm(false); }} onCancel={() => setShowMaterialForm(false)} />
+            ? <AddMaterialForm onAdd={ms => { addMaterial(ms); setShowMaterialForm(false); }} onCancel={() => setShowMaterialForm(false)} />
             : <button onClick={() => setShowMaterialForm(true)} style={{ background: "none", border: `1px dashed ${COLORS.border}`, borderRadius: 8, padding: "10px", cursor: "pointer", color: COLORS.textLight, fontSize: 13, width: "100%" }}>+ 資料を追加</button>
           }
         </div>
@@ -821,7 +822,7 @@ function ProjectWorkspace({ project, onBack, onUpdateProject }) {
   );
 }
 
-function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClient, onRestoreClient, onUpdateClient, onUpdateProject, onAddClient, onSelectPotential, showArchive, onToggleArchive }) {
+function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClient, onRestoreClient, onDeleteClient, onUpdateClient, onUpdateProject, onAddClient, onSelectPotential, showArchive, onToggleArchive }) {
   const hasClients = project.hasClients !== false;
 
   // クライアントなしモードの場合はProjectWorkspaceを表示
@@ -966,7 +967,10 @@ function ProjectDetail({ project, clients, onSelectClient, onBack, onArchiveClie
                 <Card key={c.id} style={{ padding: "12px 18px", opacity: 0.5 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontWeight: 600, color: COLORS.textLight, fontSize: 14 }}>{c.name}</span>
-                    <button onClick={() => onRestoreClient(c.id)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: COLORS.textLight, fontSize: 12 }}>復元</button>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => onRestoreClient(c.id)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: COLORS.textLight, fontSize: 12 }}>復元</button>
+                      <button onClick={() => { if (window.confirm(`「${c.name}」を完全に削除しますか？この操作は取り消せません。`)) onDeleteClient(c.id); }} style={{ background: "none", border: `1px solid ${COLORS.danger}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: COLORS.danger, fontSize: 12 }}>削除</button>
+                    </div>
                   </div>
                 </Card>
               ))}
@@ -2743,13 +2747,20 @@ function AppMain() {
 
   function archiveProject(id) {
     setProjects(prev => prev.map(p => p.id === id ? { ...p, archived: true } : p));
-    // プロジェクト内のクライアントも一緒にアーカイブ
     setClients(prev => prev.map(c => c.projectId === id ? { ...c, archived: true } : c));
   }
 
   function restoreProject(id) {
     setProjects(prev => prev.map(p => p.id === id ? { ...p, archived: false } : p));
-    // クライアントの復元はユーザーが個別に判断するため自動では行わない
+  }
+
+  function deleteProject(id) {
+    setProjects(prev => prev.filter(p => p.id !== id));
+    setClients(prev => prev.filter(c => c.projectId !== id));
+  }
+
+  function deleteClient(id) {
+    setClients(prev => prev.filter(c => c.id !== id));
   }
 
   function archiveClient(id) {
@@ -2941,6 +2952,7 @@ function AppMain() {
               onSelect={goToProject}
               onArchiveProject={archiveProject}
               onRestoreProject={restoreProject}
+              onDeleteProject={deleteProject}
               onUpdateProject={updateProject}
               onAddProject={addProject}
               showArchive={showArchive}
@@ -2972,6 +2984,7 @@ function AppMain() {
             onSelectClient={goToClient} onBack={goToTop}
             onArchiveClient={archiveClient}
             onRestoreClient={restoreClient}
+            onDeleteClient={deleteClient}
             onUpdateClient={updateClient}
             onUpdateProject={updateProject}
             onAddClient={addClient}
