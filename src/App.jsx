@@ -1147,9 +1147,7 @@ function MaterialCard({ material, onSave, onDelete }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <div>
               <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>種別</div>
-              <select value={draft.type} onChange={e => setDraft(d => ({ ...d, type: e.target.value }))} style={inputStyle()}>
-                {MATERIAL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <input value={draft.type} onChange={e => setDraft(d => ({ ...d, type: e.target.value }))} placeholder="例: 提案、契約、技術" style={inputStyle()} />
             </div>
             <div>
               <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>日付</div>
@@ -1307,10 +1305,10 @@ function AddMaterialForm({ onAdd, onCancel }) {
   const [date, setDate] = useState(today());
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
   const gasReady = GAS_URL !== "aaaaaaaaaa";
 
-  async function handleFileSelect(e) {
-    const file = e.target.files[0];
+  async function handleFile(file) {
     if (!file) return;
     setName(file.name);
     if (!gasReady) { setUploadError("GAS未設定のためアップロードできません"); return; }
@@ -1327,6 +1325,18 @@ function AddMaterialForm({ onAdd, onCancel }) {
     }
   }
 
+  function handleFileSelect(e) { handleFile(e.target.files[0]); }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  }
+
+  function handleDragOver(e) { e.preventDefault(); setIsDragging(true); }
+  function handleDragLeave() { setIsDragging(false); }
+
   function handleSubmit() {
     if (!name.trim()) return;
     onAdd({ name: name.trim(), type, url: url.trim(), memo: memo.trim(), date });
@@ -1336,16 +1346,36 @@ function AddMaterialForm({ onAdd, onCancel }) {
     <Card style={{ padding: "18px 20px", border: `1px solid ${COLORS.primary}` }}>
       <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.primary, marginBottom: 14 }}>資料を追加</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {/* ファイルアップロード */}
-        <div style={{ background: COLORS.surface, borderRadius: 8, padding: "12px 14px", border: `1px dashed ${COLORS.border}` }}>
-          <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 8 }}>ファイルをアップロード（Google Driveに保存）</div>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, color: COLORS.text }}>
-            <span>📎</span>
-            <span>{uploading ? "アップロード中..." : "ファイルを選択"}</span>
-            <input type="file" onChange={handleFileSelect} style={{ display: "none" }} disabled={uploading} />
-          </label>
+        {/* ドラッグ＆ドロップエリア */}
+        <div
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          style={{
+            background: isDragging ? "rgba(0,181,173,0.08)" : COLORS.surface,
+            borderRadius: 8, padding: "20px 14px",
+            border: `2px dashed ${isDragging ? COLORS.primary : COLORS.border}`,
+            textAlign: "center", transition: "all 0.15s",
+          }}
+        >
+          {uploading ? (
+            <div style={{ fontSize: 13, color: COLORS.textLight }}>⟳ アップロード中...</div>
+          ) : url && !uploadError ? (
+            <div style={{ fontSize: 13, color: COLORS.success }}>✓ アップロード完了</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 24, marginBottom: 6 }}>📂</div>
+              <div style={{ fontSize: 13, color: COLORS.textLight, marginBottom: 8 }}>
+                ここにファイルをドロップ
+              </div>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 14px", cursor: "pointer", fontSize: 12, color: COLORS.text }}>
+                <span>📎</span>
+                <span>ファイルを選択</span>
+                <input type="file" onChange={handleFileSelect} style={{ display: "none" }} disabled={uploading} />
+              </label>
+            </>
+          )}
           {uploadError && <div style={{ fontSize: 12, color: COLORS.danger, marginTop: 6 }}>{uploadError}</div>}
-          {url && !uploadError && <div style={{ fontSize: 12, color: COLORS.success, marginTop: 6 }}>✓ アップロード完了</div>}
         </div>
 
         <div>
@@ -1355,9 +1385,7 @@ function AddMaterialForm({ onAdd, onCancel }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
           <div>
             <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>種別</div>
-            <select value={type} onChange={e => setType(e.target.value)} style={inputStyle()}>
-              {MATERIAL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <input value={type} onChange={e => setType(e.target.value)} placeholder="例: 提案、契約、技術" style={inputStyle()} />
           </div>
           <div>
             <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>日付</div>
