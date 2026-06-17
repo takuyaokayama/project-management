@@ -11,7 +11,7 @@ async function loadFromGAS() {
   if (!res.ok) throw new Error(`Load error: ${res.status}`);
   const data = await res.json();
   if (data.error) throw new Error(data.error);
-  return data; // { projects, clients }
+  return data; // { projects, clients, members }
 }
 
 async function uploadFileToGAS(file) {
@@ -43,11 +43,11 @@ async function uploadFileToGAS(file) {
   });
 }
 
-async function saveToGAS(projects, clients) {
+async function saveToGAS(projects, clients, members) {
   const res = await fetch(GAS_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain" }, // GASはapplication/jsonをブロックするためtext/plainを使用
-    body: JSON.stringify({ action: "save", projects, clients }),
+    body: JSON.stringify({ action: "save", projects, clients, members }),
   });
   if (!res.ok) throw new Error(`Save error: ${res.status}`);
   const data = await res.json();
@@ -900,7 +900,7 @@ function PotentialSection({ projectId, potentials, onAdd, onUpdate, onPromote, o
 }
 
 const MATERIAL_TYPES = ["提案", "設計", "契約", "調査", "技術", "報告", "データ", "その他"];
-const OWNERS = ["Takuya", "Semee", "Jamers", "Jessica", "Naeun", "Ahram"];
+let OWNERS = ["Takuya"]; // Appのmembersと同期して更新される
 
 function inputStyle(extra = {}) {
   return {
@@ -1160,10 +1160,20 @@ function TodoCard({ todo, todoIndex, clientTodos, onToggle, onSave, onSetNextAct
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
-              <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>担当者</div>
-              <select value={draft.owner} onChange={e => setDraft(d => ({ ...d, owner: e.target.value }))} style={inputStyle()}>
-                {OWNERS.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
+              <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>担当者（複数可）</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {OWNERS.map(o => {
+                  const owners = draft.owners || (draft.owner ? [draft.owner] : []);
+                  const selected = owners.includes(o);
+                  return (
+                    <button key={o} type="button" onClick={() => {
+                      const cur = draft.owners || (draft.owner ? [draft.owner] : []);
+                      const next = selected ? cur.filter(x => x !== o) : [...cur, o];
+                      setDraft(d => ({ ...d, owners: next, owner: next[0] || "" }));
+                    }} style={{ background: selected ? COLORS.primary : COLORS.surface, border: `1px solid ${selected ? COLORS.primary : COLORS.border}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: selected ? "#0F1117" : COLORS.textLight, fontSize: 12 }}>{o}</button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>期限</div>
@@ -1205,7 +1215,8 @@ function TodoCard({ todo, todoIndex, clientTodos, onToggle, onSave, onSetNextAct
             </div>
             {todo.memo && <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 4, background: COLORS.surface, borderRadius: 4, padding: "4px 8px" }}>{todo.memo}</div>}
           </div>
-          <Avatar name={todo.owner} />
+          <Avatar name={todo.owner || "?"} />
+          {todo.owners && todo.owners.length > 1 && todo.owners.slice(1).map(o => <Avatar key={o} name={o} />)}
           <span style={{ fontSize: 12, color: !done && todo.due && new Date(todo.due) < new Date() ? COLORS.danger : COLORS.textLight, minWidth: 70, textAlign: "right" }}>{todo.due}</span>
         </div>
         {!done && (
@@ -1305,13 +1316,17 @@ function AddMaterialForm({ onAdd, onCancel }) {
 
 function AddTodoForm({ onAdd, onCancel }) {
   const [text, setText] = useState("");
-  const [owner, setOwner] = useState(OWNERS[0]);
+  const [owners, setOwners] = useState([OWNERS[0]]);
   const [due, setDue] = useState("");
   const [memo, setMemo] = useState("");
 
+  function toggleOwner(o) {
+    setOwners(prev => prev.includes(o) ? prev.filter(x => x !== o) : [...prev, o]);
+  }
+
   function handleSubmit() {
     if (!text.trim()) return;
-    onAdd({ text: text.trim(), owner, due, memo: memo.trim(), done: false });
+    onAdd({ text: text.trim(), owners, owner: owners[0] || "", due, memo: memo.trim(), done: false });
   }
 
   return (
@@ -1324,10 +1339,12 @@ function AddTodoForm({ onAdd, onCancel }) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
-            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>担当者</div>
-            <select value={owner} onChange={e => setOwner(e.target.value)} style={inputStyle()}>
-              {OWNERS.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
+            <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>担当者（複数可）</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+              {OWNERS.map(o => (
+                <button key={o} type="button" onClick={() => toggleOwner(o)} style={{ background: owners.includes(o) ? COLORS.primary : COLORS.surface, border: `1px solid ${owners.includes(o) ? COLORS.primary : COLORS.border}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: owners.includes(o) ? "#0F1117" : COLORS.textLight, fontSize: 12 }}>{o}</button>
+              ))}
+            </div>
           </div>
           <div>
             <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 4 }}>期限</div>
@@ -1821,10 +1838,160 @@ function ClientDetail({ client, project, onBackToProject, onBackToTop, onArchive
   );
 }
 
+// ── メンバー管理 ──
+function MemberManager({ members, onUpdate }) {
+  const [open, setOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function addMember() {
+    const n = newName.trim();
+    if (!n || members.includes(n)) return;
+    onUpdate([...members, n]);
+    setNewName("");
+  }
+
+  function removeMember(name) {
+    if (members.length <= 1) return;
+    onUpdate(members.filter(m => m !== name));
+  }
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button onClick={() => setOpen(v => !v)} style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "5px 12px", cursor: "pointer", color: COLORS.text, fontSize: 13 }}>
+        <span>👥</span>
+        <span>メンバー ({members.length})</span>
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 999, background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 14, width: 220, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.textLight, marginBottom: 10, letterSpacing: 0.5 }}>メンバー管理</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+            {members.map(m => (
+              <div key={m} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Avatar name={m} />
+                <span style={{ flex: 1, fontSize: 13, color: COLORS.text }}>{m}</span>
+                {members.length > 1 && (
+                  <button onClick={() => removeMember(m)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.textLight, fontSize: 14, padding: "0 4px" }}>✕</button>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && addMember()} placeholder="名前を追加" style={inputStyle({ flex: 1, fontSize: 12, padding: "5px 8px" })} />
+            <button onClick={addMember} style={{ background: COLORS.primary, border: "none", borderRadius: 6, padding: "5px 10px", cursor: "pointer", color: "#0F1117", fontSize: 12, fontWeight: 700 }}>追加</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── マイTODOセクション ──
+function MyTodoSection({ clients, projects, members, currentMember, onChangeMember, onClientClick }) {
+  const now = new Date();
+  const oneWeekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const myTodos = [];
+  clients.filter(c => !c.archived && !c.isPotential).forEach(client => {
+    const project = projects.find(p => p.id === client.projectId);
+    (client.todos || []).filter(t => !t.done).forEach(todo => {
+      const owners = todo.owners || (todo.owner ? [todo.owner] : []);
+      if (owners.includes(currentMember)) {
+        myTodos.push({ todo, client, project });
+      }
+    });
+  });
+
+  const overdue = myTodos.filter(({ todo }) => todo.due && new Date(todo.due) < now)
+    .sort((a, b) => new Date(a.todo.due) - new Date(b.todo.due));
+  const thisWeek = myTodos.filter(({ todo }) => todo.due && new Date(todo.due) >= now && new Date(todo.due) <= oneWeekLater)
+    .sort((a, b) => new Date(a.todo.due) - new Date(b.todo.due));
+  const later = myTodos.filter(({ todo }) => !todo.due || new Date(todo.due) > oneWeekLater)
+    .sort((a, b) => (a.todo.due || "9999") > (b.todo.due || "9999") ? 1 : -1);
+
+  function TodoRow({ todo, client, project }) {
+    const dueDate = todo.due ? new Date(todo.due) : null;
+    const isOD = dueDate && dueDate < now;
+    const diffDays = dueDate ? Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24)) : null;
+    return (
+      <div onClick={() => onClientClick(client)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 12px", borderRadius: 6, cursor: "pointer", background: COLORS.card, border: `1px solid ${COLORS.border}`, transition: "border-color 0.15s" }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = COLORS.primary}
+        onMouseLeave={e => e.currentTarget.style.borderColor = COLORS.border}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, color: COLORS.text, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{todo.text}</div>
+          <div style={{ fontSize: 11, color: COLORS.textLight }}>{project?.name} › {client.name}</div>
+        </div>
+        {dueDate && (
+          <span style={{ fontSize: 11, color: isOD ? COLORS.danger : diffDays <= 2 ? COLORS.warning : COLORS.textLight, fontWeight: 600, flexShrink: 0 }}>
+            {isOD ? `${Math.abs(diffDays)}日超過` : diffDays === 0 ? "今日" : `${diffDays}日後`}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ borderBottom: `1px solid ${COLORS.border}`, background: COLORS.surface }}>
+      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "16px 24px" }}>
+        {/* メンバー切り替え */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.textLight, letterSpacing: 0.5 }}>マイTODO</span>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {members.map(m => (
+              <button key={m} onClick={() => onChangeMember(m)} style={{ display: "flex", alignItems: "center", gap: 4, background: currentMember === m ? COLORS.primaryLight : "none", border: `1px solid ${currentMember === m ? COLORS.primary : COLORS.border}`, borderRadius: 20, padding: "2px 10px 2px 6px", cursor: "pointer", transition: "all 0.15s" }}>
+                <Avatar name={m} />
+                <span style={{ fontSize: 12, color: currentMember === m ? COLORS.primary : COLORS.textLight, fontWeight: currentMember === m ? 700 : 400 }}>{m}</span>
+              </button>
+            ))}
+          </div>
+          {myTodos.length === 0 && <span style={{ fontSize: 12, color: COLORS.textLight, marginLeft: 8 }}>割り当てられたTODOはありません</span>}
+        </div>
+
+        {myTodos.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 8 }}>
+            {overdue.map(({ todo, client, project }, i) => (
+              <div key={`od-${i}`} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <span style={{ fontSize: 12 }}>🔴</span>
+                <div style={{ flex: 1 }}><TodoRow todo={todo} client={client} project={project} /></div>
+              </div>
+            ))}
+            {thisWeek.map(({ todo, client, project }, i) => (
+              <div key={`tw-${i}`} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <span style={{ fontSize: 12 }}>🟡</span>
+                <div style={{ flex: 1 }}><TodoRow todo={todo} client={client} project={project} /></div>
+              </div>
+            ))}
+            {later.map(({ todo, client, project }, i) => (
+              <div key={`lt-${i}`} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <span style={{ fontSize: 12 }}>📋</span>
+                <div style={{ flex: 1 }}><TodoRow todo={todo} client={client} project={project} /></div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── ルート ──
 export default function App() {
   const [projects, setProjects] = useState(PROJECTS_INIT);
   const [clients, setClients] = useState(CLIENTS_INIT);
+  const [members, setMembers] = useState(["Takuya"]);
+  const [currentMember, setCurrentMember] = useState("Takuya");
+
+  // membersが変わったらOWNERSグローバル変数を同期
+  useEffect(() => { OWNERS = members; }, [members]);
   const [view, setView] = useState("projects");
   const [filterType, setFilterType] = useState(null);
   const prevViewRef = useRef("projects");
@@ -1846,7 +2013,7 @@ export default function App() {
     if (!gasEnabled) { setIsLoading(false); return; }
     setSyncStatus("loading");
     loadFromGAS()
-      .then(({ projects: p, clients: c }) => {
+      .then(({ projects: p, clients: c, members: m }) => {
         if (p && p.length > 0) {
           setProjects(p);
           nextProjectId.current = Math.max(...p.map(x => x.id)) + 1;
@@ -1854,6 +2021,10 @@ export default function App() {
         if (c && c.length > 0) {
           setClients(c);
           nextClientId.current = Math.max(...c.map(x => x.id)) + 1;
+        }
+        if (m && m.length > 0) {
+          setMembers(m);
+          setCurrentMember(m[0]);
         }
         setSyncStatus("saved");
       })
@@ -1867,12 +2038,12 @@ export default function App() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setSyncStatus("saving");
     saveTimerRef.current = setTimeout(() => {
-      saveToGAS(projects, clients)
+      saveToGAS(projects, clients, members)
         .then(() => setSyncStatus("saved"))
         .catch(() => setSyncStatus("error"));
     }, 1000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [projects, clients]);
+  }, [projects, clients, members]);
 
   function goToProject(project) { setSelectedProject(project); prevViewRef.current = "projects"; setView("project"); setShowArchive(false); }
   function goToClient(client) { setSelectedClient(client); prevViewRef.current = view; setView("client"); }
@@ -2033,25 +2204,32 @@ export default function App() {
           <span style={{ fontSize: 10, background: COLORS.primaryLight, color: COLORS.primary, padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>dataSpring</span>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          {/* メンバー管理 */}
+          <MemberManager members={members} onUpdate={setMembers} />
           {!gasEnabled && (
             <span style={{ fontSize: 11, color: COLORS.warning, background: "rgba(246,173,85,0.1)", padding: "3px 8px", borderRadius: 4 }}>
               ⚠ ローカルモード（GAS未設定）
             </span>
           )}
-          {gasEnabled && syncStatus === "loading" && (
-            <span style={{ fontSize: 11, color: COLORS.textLight }}>⟳ 読み込み中...</span>
-          )}
-          {gasEnabled && syncStatus === "saving" && (
-            <span style={{ fontSize: 11, color: COLORS.textLight }}>⟳ 保存中...</span>
-          )}
-          {gasEnabled && syncStatus === "saved" && (
-            <span style={{ fontSize: 11, color: COLORS.success }}>✓ 保存済み</span>
-          )}
-          {gasEnabled && syncStatus === "error" && (
-            <span style={{ fontSize: 11, color: COLORS.danger }}>✕ 保存エラー（GAS設定を確認）</span>
-          )}
+          {gasEnabled && syncStatus === "loading" && <span style={{ fontSize: 11, color: COLORS.textLight }}>⟳ 読み込み中...</span>}
+          {gasEnabled && syncStatus === "saving" && <span style={{ fontSize: 11, color: COLORS.textLight }}>⟳ 保存中...</span>}
+          {gasEnabled && syncStatus === "saved" && <span style={{ fontSize: 11, color: COLORS.success }}>✓ 保存済み</span>}
+          {gasEnabled && syncStatus === "error" && <span style={{ fontSize: 11, color: COLORS.danger }}>✕ 保存エラー（GAS設定を確認）</span>}
         </div>
       </div>
+
+      {/* マイTODOセクション */}
+      <MyTodoSection
+        clients={clients}
+        projects={projects}
+        members={members}
+        currentMember={currentMember}
+        onChangeMember={setCurrentMember}
+        onClientClick={client => {
+          const project = projects.find(p => p.id === client.projectId);
+          if (project) { setSelectedProject(project); prevViewRef.current = view; setSelectedClient(client); setView("client"); }
+        }}
+      />
 
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: "32px 24px" }}>
         {view === "projects" && (
