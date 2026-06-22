@@ -1433,7 +1433,9 @@ function MaterialCard({ material, onSave, onDelete }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text }}>{material.name}</div>
             <span style={{ background: COLORS.surface, color: COLORS.textLight, fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{material.type}</span>
-            {material.url && <span style={{ fontSize: 11, color: COLORS.primary }}>🔗 リンクあり</span>}
+            {material.url && (
+              <a href={material.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11, color: COLORS.primary, textDecoration: "none" }}>🔗 リンクを開く</a>
+            )}
           </div>
           <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>{material.date}</div>
           {material.memo && <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 6, background: COLORS.surface, borderRadius: 4, padding: "5px 8px", whiteSpace: "pre-wrap" }}>{material.memo}</div>}
