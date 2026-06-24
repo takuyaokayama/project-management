@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 // GASデプロイ後に発行されたウェブアプリのURLを設定してください
 const GAS_URL = "https://script.google.com/macros/s/AKfycbyGcNV1vOSO6htWKBoIQ-1EdkvKTGheNsD-GkZpHBwsUfZwjbJB4BN8bGMqL2PHUtKJ/exec";
 const APP_PASSWORD = "okayamaokayama";
-
 // ── GAS読み書きユーティリティ ──
 async function loadFromGAS() {
   const url = `${GAS_URL}?action=load`;
@@ -469,6 +468,51 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
   const overdueTodos = urgentTodos.filter(({ todo }) => new Date(todo.due) < now);
   const soonTodos = urgentTodos.filter(({ todo }) => new Date(todo.due) >= now);
 
+  // 1ヶ月以内のToDo収集
+  const oneMonthLater = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
+  const monthTodos = [];
+  clients.filter(c => !c.archived && !c.isPotential).forEach(client => {
+    const project = projects.find(p => p.id === client.projectId);
+    (client.todos || []).filter(t => !t.done && t.due).forEach(todo => {
+      const dueDate = new Date(todo.due);
+      if (dueDate <= oneMonthLater) {
+        monthTodos.push({ todo, client, project });
+      }
+    });
+  });
+
+  // 週ごとにグループ化
+  function getWeekStart(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day; // 月曜始まり
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function formatWeekLabel(weekStart) {
+    const end = new Date(weekStart);
+    end.setDate(end.getDate() + 6);
+    const fmt = d => `${d.getMonth() + 1}/${d.getDate()}`;
+    return `${fmt(weekStart)} 〜 ${fmt(end)}`;
+  }
+
+  const weeksMap = new Map();
+  const calStart = getWeekStart(now);
+  for (let i = 0; i < 5; i++) {
+    const ws = new Date(calStart);
+    ws.setDate(ws.getDate() + i * 7);
+    weeksMap.set(ws.getTime(), []);
+  }
+  monthTodos.forEach(item => {
+    const ws = getWeekStart(new Date(item.todo.due));
+    const key = ws.getTime();
+    if (weeksMap.has(key)) {
+      weeksMap.get(key).push(item);
+    }
+  });
+
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
@@ -486,7 +530,7 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
         ))}
       </div>
 
-      {/* 期限アラートセクション */}
+      {/* 期限アラート：2列 */}
       {urgentTodos.length > 0 && (
         <div style={{ marginBottom: 24 }}>
           <button onClick={() => setShowDeadlines(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, padding: 0, marginBottom: 10 }}>
@@ -505,40 +549,101 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
             )}
           </button>
           {showDeadlines && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {urgentTodos.map(({ todo, client, project }, i) => {
-                const dueDate = new Date(todo.due);
-                const isOD = dueDate < now;
-                const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
-                const todoIdx = (client.todos || []).indexOf(todo);
-                return (
-                  <div key={i} style={{ background: COLORS.card, border: `1px solid ${isOD ? "rgba(252,129,129,0.3)" : "rgba(246,173,85,0.3)"}`, borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", transition: "border-color 0.15s" }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = isOD ? COLORS.danger : COLORS.warning}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = isOD ? "rgba(252,129,129,0.3)" : "rgba(246,173,85,0.3)"}
-                  >
-                    <div onClick={() => onCompleteTodo(client.id, todoIdx)}
-                      style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${COLORS.primary}`, flexShrink: 0, cursor: "pointer" }}
-                    />
-                    <span style={{ fontSize: 14 }}>{isOD ? "🔴" : "🟡"}</span>
-                    <div onClick={() => onClientClick(client)} style={{ flex: 1, minWidth: 120, cursor: "pointer" }}>
-                      <div style={{ fontSize: 13, color: COLORS.text, fontWeight: 500 }}>{todo.text}</div>
-                      <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 2 }}>
-                        {project?.name} › {client.name}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                      <Avatar name={todo.owner} />
-                      <span style={{ fontSize: 12, color: COLORS.textLight }}>{todo.owner}</span>
-                      <span style={{ fontSize: 12, color: isOD ? COLORS.danger : COLORS.warning, fontWeight: 600 }}>
-                        {isOD ? `${Math.abs(diffDays)}日超過` : diffDays === 0 ? "今日" : `${diffDays}日後`}
-                      </span>
-                      <span style={{ fontSize: 12, color: COLORS.textLight }}>{todo.due}</span>
-                    </div>
-                  </div>
-                );
-              })}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {/* 左列：期限超過 */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.danger, marginBottom: 8, letterSpacing: 0.5 }}>🔴 期限超過</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {overdueTodos.length === 0
+                    ? <div style={{ fontSize: 12, color: COLORS.textLight }}>なし</div>
+                    : overdueTodos.map(({ todo, client, project }, i) => {
+                      const diffDays = Math.ceil((new Date(todo.due) - now) / (1000 * 60 * 60 * 24));
+                      const todoIdx = (client.todos || []).indexOf(todo);
+                      return (
+                        <div key={i} style={{ background: COLORS.card, border: "1px solid rgba(252,129,129,0.3)", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                          <div onClick={() => onCompleteTodo(client.id, todoIdx)} style={{ width: 16, height: 16, borderRadius: 3, border: `2px solid ${COLORS.primary}`, flexShrink: 0, cursor: "pointer" }} />
+                          <div onClick={() => onClientClick(client)} style={{ flex: 1, cursor: "pointer", minWidth: 0 }}>
+                            <div style={{ fontSize: 12, color: COLORS.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{todo.text}</div>
+                            <div style={{ fontSize: 10, color: COLORS.textLight }}>{project?.name} › {client.name}</div>
+                          </div>
+                          <span style={{ fontSize: 11, color: COLORS.danger, fontWeight: 600, flexShrink: 0 }}>{Math.abs(diffDays)}日超過</span>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+              </div>
+              {/* 右列：1週間以内 */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.warning, marginBottom: 8, letterSpacing: 0.5 }}>🟡 1週間以内</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {soonTodos.length === 0
+                    ? <div style={{ fontSize: 12, color: COLORS.textLight }}>なし</div>
+                    : soonTodos.map(({ todo, client, project }, i) => {
+                      const diffDays = Math.ceil((new Date(todo.due) - now) / (1000 * 60 * 60 * 24));
+                      const todoIdx = (client.todos || []).indexOf(todo);
+                      return (
+                        <div key={i} style={{ background: COLORS.card, border: "1px solid rgba(246,173,85,0.3)", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                          <div onClick={() => onCompleteTodo(client.id, todoIdx)} style={{ width: 16, height: 16, borderRadius: 3, border: `2px solid ${COLORS.primary}`, flexShrink: 0, cursor: "pointer" }} />
+                          <div onClick={() => onClientClick(client)} style={{ flex: 1, cursor: "pointer", minWidth: 0 }}>
+                            <div style={{ fontSize: 12, color: COLORS.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{todo.text}</div>
+                            <div style={{ fontSize: 10, color: COLORS.textLight }}>{project?.name} › {client.name}</div>
+                          </div>
+                          <span style={{ fontSize: 11, color: COLORS.warning, fontWeight: 600, flexShrink: 0 }}>{diffDays === 0 ? "今日" : `${diffDays}日後`}</span>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+              </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 1ヶ月カレンダー */}
+      {monthTodos.length > 0 && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 12 }}>📅 1ヶ月のスケジュール</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {Array.from(weeksMap.entries()).map(([wsTime, items]) => {
+              const ws = new Date(wsTime);
+              const isCurrentWeek = ws <= now && now < new Date(wsTime + 7 * 24 * 60 * 60 * 1000);
+              return (
+                <div key={wsTime} style={{ background: COLORS.card, border: `1px solid ${isCurrentWeek ? COLORS.primary : COLORS.border}`, borderRadius: 10, overflow: "hidden" }}>
+                  <div style={{ padding: "8px 14px", background: isCurrentWeek ? COLORS.primaryLight : COLORS.surface, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: isCurrentWeek ? COLORS.primary : COLORS.textLight }}>{formatWeekLabel(ws)}</span>
+                    {isCurrentWeek && <span style={{ fontSize: 10, background: COLORS.primary, color: "#0F1117", borderRadius: 4, padding: "1px 6px", fontWeight: 700 }}>今週</span>}
+                    <span style={{ fontSize: 11, color: COLORS.textLight, marginLeft: "auto" }}>{items.length}件</span>
+                  </div>
+                  {items.length > 0 && (
+                    <div style={{ padding: "8px 14px", display: "flex", flexDirection: "column", gap: 4 }}>
+                      {items.sort((a, b) => new Date(a.todo.due) - new Date(b.todo.due)).map(({ todo, client, project }, i) => {
+                        const dueDate = new Date(todo.due);
+                        const isOD = dueDate < now;
+                        const todoIdx = (client.todos || []).indexOf(todo);
+                        return (
+                          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: i < items.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+                            <div onClick={() => onCompleteTodo(client.id, todoIdx)} style={{ width: 14, height: 14, borderRadius: 3, border: `2px solid ${isOD ? COLORS.danger : COLORS.primary}`, flexShrink: 0, cursor: "pointer" }} />
+                            <span style={{ fontSize: 11, fontWeight: 700, color: isOD ? COLORS.danger : COLORS.textLight, flexShrink: 0, minWidth: 32 }}>
+                              {`${dueDate.getMonth() + 1}/${dueDate.getDate()}`}
+                            </span>
+                            <div onClick={() => onClientClick(client)} style={{ flex: 1, cursor: "pointer", minWidth: 0 }}>
+                              <span style={{ fontSize: 12, color: isOD ? COLORS.danger : COLORS.text }}>{todo.text}</span>
+                              <span style={{ fontSize: 10, color: COLORS.textLight, marginLeft: 6 }}>{client.name}</span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                              <Avatar name={todo.owner || "?"} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
