@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 // GASデプロイ後に発行されたウェブアプリのURLを設定してください
 const GAS_URL = "https://script.google.com/macros/s/AKfycbyGcNV1vOSO6htWKBoIQ-1EdkvKTGheNsD-GkZpHBwsUfZwjbJB4BN8bGMqL2PHUtKJ/exec";
 const APP_PASSWORD = "okayamaokayama";
+
 // ── GAS読み書きユーティリティ ──
 async function loadFromGAS() {
   const url = `${GAS_URL}?action=load`;
@@ -56,9 +57,11 @@ async function saveToGAS(projects, clients, members) {
 
 // ── ダークモードカラー ──
 const COLORS = {
-  primary: "#00B5AD",
-  primaryLight: "rgba(0,181,173,0.15)",
-  primaryDark: "#008C85",
+  primary: "#E53E3E",
+  primaryLight: "rgba(229,62,62,0.15)",
+  primaryDark: "#C53030",
+  teal: "#00B5AD",
+  tealLight: "rgba(0,181,173,0.15)",
   text: "#E2E8F0",
   textLight: "#718096",
   border: "#2D3748",
@@ -519,8 +522,8 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
         {[
           { label: "総プロジェクト", value: activeProjects.length, color: COLORS.primary, filter: null },
           { label: "進行中クライアント", value: totalActive, color: COLORS.primary, filter: "active" },
-          { label: "提案中", value: totalProposal, color: COLORS.warning, filter: "proposal" },
-          { label: "連絡待ち", value: totalWaiting, color: "#667EEA", filter: "waiting" },
+          { label: "提案中", value: totalProposal, color: COLORS.primary, filter: "proposal" },
+          { label: "連絡待ち", value: totalWaiting, color: COLORS.primary, filter: "waiting" },
         ].map(s => (
           <Card key={s.label} onClick={s.filter ? () => onFilterClick(s.filter) : undefined} style={{ textAlign: "center", padding: "16px 12px", cursor: s.filter ? "pointer" : "default" }}>
             <div style={{ fontSize: 28, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
@@ -3077,7 +3080,7 @@ function AppMain() {
             <span style={{ color: "#0F1117", fontSize: 14, fontWeight: 700 }}>岡</span>
           </div>
           <span style={{ fontWeight: 700, fontSize: 16, color: COLORS.text }}>Okayama CRM</span>
-          <span style={{ fontSize: 10, background: COLORS.primaryLight, color: COLORS.primary, padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>dataSpring</span>
+          <span style={{ fontSize: 10, background: COLORS.tealLight, color: COLORS.teal, padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>dataSpring</span>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           {/* メンバー管理 */}
