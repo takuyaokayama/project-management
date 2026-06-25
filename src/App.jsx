@@ -608,41 +608,37 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
       {monthTodos.length > 0 && (
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 12 }}>📅 1ヶ月のスケジュール</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 4 }}>
             {Array.from(weeksMap.entries()).map(([wsTime, items]) => {
               const ws = new Date(wsTime);
               const isCurrentWeek = ws <= now && now < new Date(wsTime + 7 * 24 * 60 * 60 * 1000);
               return (
-                <div key={wsTime} style={{ background: COLORS.card, border: `1px solid ${isCurrentWeek ? COLORS.primary : COLORS.border}`, borderRadius: 10, overflow: "hidden" }}>
-                  <div style={{ padding: "8px 14px", background: isCurrentWeek ? COLORS.primaryLight : COLORS.surface, display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: isCurrentWeek ? COLORS.primary : COLORS.textLight }}>{formatWeekLabel(ws)}</span>
-                    {isCurrentWeek && <span style={{ fontSize: 10, background: COLORS.primary, color: "#0F1117", borderRadius: 4, padding: "1px 6px", fontWeight: 700 }}>今週</span>}
-                    <span style={{ fontSize: 11, color: COLORS.textLight, marginLeft: "auto" }}>{items.length}件</span>
-                  </div>
-                  {items.length > 0 && (
-                    <div style={{ padding: "8px 14px", display: "flex", flexDirection: "column", gap: 4 }}>
-                      {items.sort((a, b) => new Date(a.todo.due) - new Date(b.todo.due)).map(({ todo, client, project }, i) => {
-                        const dueDate = new Date(todo.due);
-                        const isOD = dueDate < now;
-                        const todoIdx = (client.todos || []).indexOf(todo);
-                        return (
-                          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: i < items.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
-                            <div onClick={() => onCompleteTodo(client.id, todoIdx)} style={{ width: 14, height: 14, borderRadius: 3, border: `2px solid ${isOD ? COLORS.danger : COLORS.primary}`, flexShrink: 0, cursor: "pointer" }} />
-                            <span style={{ fontSize: 11, fontWeight: 700, color: isOD ? COLORS.danger : COLORS.textLight, flexShrink: 0, minWidth: 32 }}>
-                              {`${dueDate.getMonth() + 1}/${dueDate.getDate()}`}
-                            </span>
-                            <div onClick={() => onClientClick(client)} style={{ flex: 1, cursor: "pointer", minWidth: 0 }}>
-                              <span style={{ fontSize: 12, color: isOD ? COLORS.danger : COLORS.text }}>{todo.text}</span>
-                              <span style={{ fontSize: 10, color: COLORS.textLight, marginLeft: 6 }}>{client.name}</span>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                              <Avatar name={todo.owner || "?"} />
-                            </div>
-                          </div>
-                        );
-                      })}
+                <div key={wsTime} style={{ background: COLORS.card, border: `1px solid ${isCurrentWeek ? COLORS.primary : COLORS.border}`, borderRadius: 10, overflow: "hidden", minWidth: 0 }}>
+                  <div style={{ padding: "8px 10px", background: isCurrentWeek ? COLORS.primaryLight : COLORS.surface }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: isCurrentWeek ? COLORS.primary : COLORS.textLight, marginBottom: 2 }}>{formatWeekLabel(ws)}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      {isCurrentWeek && <span style={{ fontSize: 9, background: COLORS.primary, color: "#fff", borderRadius: 3, padding: "1px 5px", fontWeight: 700 }}>今週</span>}
+                      <span style={{ fontSize: 10, color: COLORS.textLight }}>{items.length}件</span>
                     </div>
-                  )}
+                  </div>
+                  <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 4, minHeight: 40 }}>
+                    {items.length === 0 && <div style={{ fontSize: 11, color: COLORS.border }}>予定なし</div>}
+                    {items.sort((a, b) => new Date(a.todo.due) - new Date(b.todo.due)).map(({ todo, client, project }, i) => {
+                      const dueDate = new Date(todo.due);
+                      const isOD = dueDate < now;
+                      const todoIdx = (client.todos || []).indexOf(todo);
+                      return (
+                        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 5, paddingBottom: i < items.length - 1 ? 4 : 0, borderBottom: i < items.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+                          <div onClick={() => onCompleteTodo(client.id, todoIdx)} style={{ width: 12, height: 12, borderRadius: 3, border: `2px solid ${isOD ? COLORS.danger : COLORS.primary}`, flexShrink: 0, cursor: "pointer", marginTop: 2 }} />
+                          <div onClick={() => onClientClick(client)} style={{ flex: 1, cursor: "pointer", minWidth: 0 }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: isOD ? COLORS.danger : COLORS.textLight, marginBottom: 1 }}>{`${dueDate.getMonth() + 1}/${dueDate.getDate()}`}</div>
+                            <div style={{ fontSize: 11, color: isOD ? COLORS.danger : COLORS.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{todo.text}</div>
+                            <div style={{ fontSize: 10, color: COLORS.textLight, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{client.name}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
