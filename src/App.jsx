@@ -2833,6 +2833,151 @@ function LoginScreen({ onLogin }) {
   );
 }
 
+// ── 検索 ──
+function SearchView({ projects, clients, onSelectClient, onSelectPotential, onSelectProject, onBack }) {
+  const [query, setQuery] = useState("");
+  const inputRef = useRef(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const q = query.trim().toLowerCase();
+
+  const results = [];
+
+  if (q.length >= 1) {
+    // プロジェクト
+    projects.filter(p => !p.archived).forEach(p => {
+      const hits = [];
+      if (p.name?.toLowerCase().includes(q)) hits.push({ field: "プロジェクト名", text: p.name });
+      if (p.description?.toLowerCase().includes(q)) hits.push({ field: "説明", text: p.description });
+      (p.todos || []).forEach(t => {
+        if (t.text?.toLowerCase().includes(q)) hits.push({ field: "ToDo", text: t.text });
+        if (t.memo?.toLowerCase().includes(q)) hits.push({ field: "ToDoメモ", text: t.memo });
+      });
+      (p.mtgs || []).forEach(m => {
+        if (m.title?.toLowerCase().includes(q)) hits.push({ field: "MTGタイトル", text: m.title });
+        if (m.content?.toLowerCase().includes(q)) hits.push({ field: "MTG内容", text: m.content });
+        (m.actions || []).forEach(a => { if (a?.toLowerCase().includes(q)) hits.push({ field: "アクション", text: a }); });
+        (m.decisions || []).forEach(d => { if (d?.toLowerCase().includes(q)) hits.push({ field: "決定事項", text: d }); });
+      });
+      (p.materials || []).forEach(m => {
+        if (m.name?.toLowerCase().includes(q)) hits.push({ field: "資料名", text: m.name });
+        if (m.memo?.toLowerCase().includes(q)) hits.push({ field: "資料メモ", text: m.memo });
+      });
+      if (hits.length > 0) results.push({ type: "project", project: p, hits });
+    });
+
+    // クライアント・ポテンシャル
+    clients.filter(c => !c.archived).forEach(c => {
+      const project = projects.find(p => p.id === c.projectId);
+      const hits = [];
+      if (c.name?.toLowerCase().includes(q)) hits.push({ field: "クライアント名", text: c.name });
+      if (c.summary?.toLowerCase().includes(q)) hits.push({ field: "サマリー", text: c.summary });
+      if (c.phase?.toLowerCase().includes(q)) hits.push({ field: "フェーズ", text: c.phase });
+      if (c.info?.country?.toLowerCase().includes(q)) hits.push({ field: "国", text: c.info.country });
+      if (c.info?.industry?.toLowerCase().includes(q)) hits.push({ field: "URL", text: c.info.industry });
+      (c.info?.contacts || []).forEach(ct => {
+        if (ct.name?.toLowerCase().includes(q)) hits.push({ field: "先方担当者", text: ct.name });
+        if (ct.email?.toLowerCase().includes(q)) hits.push({ field: "メール", text: ct.email });
+      });
+      (c.todos || []).forEach(t => {
+        if (t.text?.toLowerCase().includes(q)) hits.push({ field: "ToDo", text: t.text });
+        if (t.memo?.toLowerCase().includes(q)) hits.push({ field: "ToDoメモ", text: t.memo });
+      });
+      (c.mtgs || []).forEach(m => {
+        if (m.title?.toLowerCase().includes(q)) hits.push({ field: "MTGタイトル", text: m.title });
+        if (m.content?.toLowerCase().includes(q)) hits.push({ field: "MTG内容", text: m.content });
+        (m.actions || []).forEach(a => { if (a?.toLowerCase().includes(q)) hits.push({ field: "アクション", text: a }); });
+        (m.decisions || []).forEach(d => { if (d?.toLowerCase().includes(q)) hits.push({ field: "決定事項", text: d }); });
+        (m.nextAgenda || []).forEach(n => { if (n?.toLowerCase().includes(q)) hits.push({ field: "次回議題", text: n }); });
+      });
+      (c.materials || []).forEach(m => {
+        if (m.name?.toLowerCase().includes(q)) hits.push({ field: "資料名", text: m.name });
+        if (m.memo?.toLowerCase().includes(q)) hits.push({ field: "資料メモ", text: m.memo });
+      });
+      if (hits.length > 0) results.push({ type: c.isPotential ? "potential" : "client", client: c, project, hits });
+    });
+  }
+
+  function highlight(text, q) {
+    if (!text || !q) return text;
+    const idx = text.toLowerCase().indexOf(q);
+    if (idx === -1) return text.length > 60 ? text.slice(0, 60) + "…" : text;
+    const start = Math.max(0, idx - 20);
+    const end = Math.min(text.length, idx + q.length + 40);
+    const pre = (start > 0 ? "…" : "") + text.slice(start, idx);
+    const match = text.slice(idx, idx + q.length);
+    const post = text.slice(idx + q.length, end) + (end < text.length ? "…" : "");
+    return <span>{pre}<span style={{ background: "rgba(229,62,62,0.25)", color: COLORS.primary, fontWeight: 700, borderRadius: 2, padding: "0 2px" }}>{match}</span>{post}</span>;
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <BackButton onClick={onBack} />
+        <div style={{ flex: 1, position: "relative" }}>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: COLORS.textLight, fontSize: 16 }}>🔍</span>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="クライアント名・MTG内容・ToDo・資料名など..."
+            style={{ ...inputStyle(), paddingLeft: 38, fontSize: 15, height: 44 }}
+          />
+          {query && (
+            <button onClick={() => setQuery("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: COLORS.textLight, fontSize: 18 }}>✕</button>
+          )}
+        </div>
+      </div>
+
+      {q.length === 0 && (
+        <div style={{ textAlign: "center", padding: "48px 0", color: COLORS.textLight, fontSize: 14 }}>
+          キーワードを入力して検索
+        </div>
+      )}
+
+      {q.length > 0 && results.length === 0 && (
+        <div style={{ textAlign: "center", padding: "48px 0", color: COLORS.textLight, fontSize: 14 }}>
+          「{query}」に一致する結果が見つかりませんでした
+        </div>
+      )}
+
+      {results.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 14 }}>{results.length}件の結果</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {results.map((r, i) => (
+              <Card key={i} onClick={() => {
+                if (r.type === "project") onSelectProject(r.project);
+                else if (r.type === "client") onSelectClient(r.client);
+                else onSelectPotential(r.client);
+              }} style={{ padding: "14px 18px", cursor: "pointer" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, background: r.type === "project" ? COLORS.surface : r.type === "potential" ? "rgba(102,126,234,0.15)" : COLORS.primaryLight, color: r.type === "project" ? COLORS.textLight : r.type === "potential" ? "#667EEA" : COLORS.primary, borderRadius: 4, padding: "2px 8px", fontWeight: 600 }}>
+                    {r.type === "project" ? "プロジェクト" : r.type === "potential" ? "ポテンシャル" : "クライアント"}
+                  </span>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: COLORS.text }}>{r.type === "project" ? r.project.name : r.client.name}</span>
+                  {r.project && r.type !== "project" && <span style={{ fontSize: 11, color: COLORS.textLight }}>› {r.project.name}</span>}
+                  <span style={{ marginLeft: "auto", color: COLORS.primary, fontSize: 16 }}>›</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {r.hits.slice(0, 3).map((hit, j) => (
+                    <div key={j} style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                      <span style={{ fontSize: 10, color: COLORS.textLight, background: COLORS.surface, borderRadius: 3, padding: "1px 6px", flexShrink: 0 }}>{hit.field}</span>
+                      <span style={{ fontSize: 12, color: COLORS.text }}>{highlight(hit.text, q)}</span>
+                    </div>
+                  ))}
+                  {r.hits.length > 3 && <div style={{ fontSize: 11, color: COLORS.textLight }}>他 {r.hits.length - 3} 件の一致</div>}
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── ルート ──
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(() => sessionStorage.getItem("okayama_crm_auth") === "1");
@@ -2910,6 +3055,8 @@ function AppMain() {
   function goToClient(client) { setSelectedClient(client); prevViewRef.current = view; setView("client"); }
   function goToPotential(potential) { setSelectedPotential(potential); prevViewRef.current = view; setView("potential"); }
   function goToTop() { setSelectedProject(null); setSelectedClient(null); setSelectedPotential(null); setView("projects"); setShowArchive(false); setFilterType(null); }
+  function goToSearch() { prevViewRef.current = view; setView("search"); }
+  function goBackFromSearch() { setView(prevViewRef.current || "projects"); }
   function goBackToProject() {
     setSelectedClient(null);
     setSelectedPotential(null);
@@ -3095,6 +3242,10 @@ function AppMain() {
           <span style={{ fontSize: 10, background: COLORS.tealLight, color: COLORS.teal, padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>dataSpring</span>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          {/* 検索ボタン */}
+          <button onClick={goToSearch} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "5px 12px", cursor: "pointer", color: COLORS.textLight, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+            <span>🔍</span><span>検索</span>
+          </button>
           {/* メンバー管理 */}
           <MemberManager members={members} onUpdate={setMembers} />
           {!gasEnabled && (
@@ -3216,6 +3367,22 @@ function AppMain() {
             onDeleteTodo={deleteTodo}
             onPromote={id => updateClient(id, { isPotential: false })}
             onReorderMaterials={reorderMaterials}
+          />
+        )}
+        {view === "search" && (
+          <SearchView
+            projects={projects}
+            clients={clients}
+            onBack={goBackFromSearch}
+            onSelectProject={project => { goToProject(project); }}
+            onSelectClient={client => {
+              const project = projects.find(p => p.id === client.projectId);
+              if (project) { setSelectedProject(project); goToClient(client); }
+            }}
+            onSelectPotential={potential => {
+              const project = projects.find(p => p.id === potential.projectId);
+              if (project) { setSelectedProject(project); goToPotential(potential); }
+            }}
           />
         )}
       </div>
