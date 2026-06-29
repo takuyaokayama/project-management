@@ -262,7 +262,7 @@ function FilterView({ filterType, projects, clients, onBack, onSelectClient }) {
   const overdueTodos = filterType === "overdue"
     ? (() => {
         const items = [];
-        clients.filter(c => !c.archived && !c.isPotential).forEach(client => {
+        clients.filter(c => !c.archived).forEach(client => {
           const project = projects.find(p => p.id === client.projectId);
           (client.todos || []).filter(t => !t.done && t.due && new Date(t.due) < now).forEach(todo => {
             items.push({ todo, client, project });
@@ -458,7 +458,7 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
   const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
   const tomorrowEnd = new Date(todayEnd); tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
   const urgentTodos = [];
-  clients.filter(c => !c.archived && !c.isPotential).forEach(client => {
+  clients.filter(c => !c.archived).forEach(client => {
     const project = projects.find(p => p.id === client.projectId);
     (client.todos || []).filter(t => !t.done && t.due).forEach(todo => {
       const dueDate = new Date(todo.due);
@@ -476,7 +476,7 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
   // 1ヶ月以内のToDo収集
   const oneMonthLater = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
   const monthTodos = [];
-  clients.filter(c => !c.archived && !c.isPotential).forEach(client => {
+  clients.filter(c => !c.archived).forEach(client => {
     const project = projects.find(p => p.id === client.projectId);
     (client.todos || []).filter(t => !t.done && t.due).forEach(todo => {
       const dueDate = new Date(todo.due);
@@ -2693,7 +2693,7 @@ function MyTodoSection({ clients, projects, members, currentMember, onChangeMemb
 
   const myTodos = [];
   if (currentMember) {
-    clients.filter(c => !c.archived && !c.isPotential).forEach(client => {
+    clients.filter(c => !c.archived).forEach(client => {
       const project = projects.find(p => p.id === client.projectId);
       (client.todos || []).filter(t => !t.done).forEach(todo => {
         const owners = todo.owners || (todo.owner ? [todo.owner] : []);
