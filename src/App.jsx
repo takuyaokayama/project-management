@@ -453,15 +453,16 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
   const totalWaiting = activeRealClients.filter(c => c.status === "連絡待ち").length;
   const totalOverdue = clients.filter(c => !c.archived && isOverdue(c)).length;
 
-  // 期限が1週間以内または過ぎているToDoを全クライアント横断で収集
+  // 期限アラート：期限超過・今日・明日
   const now = new Date();
-  const oneWeekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
+  const tomorrowEnd = new Date(todayEnd); tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
   const urgentTodos = [];
   clients.filter(c => !c.archived && !c.isPotential).forEach(client => {
     const project = projects.find(p => p.id === client.projectId);
     (client.todos || []).filter(t => !t.done && t.due).forEach(todo => {
       const dueDate = new Date(todo.due);
-      if (dueDate <= oneWeekLater) {
+      if (dueDate <= tomorrowEnd) {
         urgentTodos.push({ todo, client, project });
       }
     });
@@ -469,7 +470,8 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
   urgentTodos.sort((a, b) => new Date(a.todo.due) - new Date(b.todo.due));
 
   const overdueTodos = urgentTodos.filter(({ todo }) => new Date(todo.due) < now);
-  const soonTodos = urgentTodos.filter(({ todo }) => new Date(todo.due) >= now);
+  const todayTodos = urgentTodos.filter(({ todo }) => { const d = new Date(todo.due); return d >= now && d <= todayEnd; });
+  const tomorrowTodos = urgentTodos.filter(({ todo }) => { const d = new Date(todo.due); return d > todayEnd && d <= tomorrowEnd; });
 
   // 1ヶ月以内のToDo収集
   const oneMonthLater = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
@@ -540,20 +542,13 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
             <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>
               {showDeadlines ? "▼" : "▶"} 期限アラート
             </span>
-            {overdueTodos.length > 0 && (
-              <span style={{ fontSize: 11, background: "rgba(252,129,129,0.15)", color: COLORS.danger, borderRadius: 4, padding: "1px 8px", fontWeight: 600 }}>
-                期限超過 {overdueTodos.length}件
-              </span>
-            )}
-            {soonTodos.length > 0 && (
-              <span style={{ fontSize: 11, background: "rgba(246,173,85,0.15)", color: COLORS.warning, borderRadius: 4, padding: "1px 8px", fontWeight: 600 }}>
-                1週間以内 {soonTodos.length}件
-              </span>
-            )}
+            {overdueTodos.length > 0 && <span style={{ fontSize: 11, background: "rgba(252,129,129,0.15)", color: COLORS.danger, borderRadius: 4, padding: "1px 8px", fontWeight: 600 }}>期限超過 {overdueTodos.length}件</span>}
+            {todayTodos.length > 0 && <span style={{ fontSize: 11, background: "rgba(229,62,62,0.15)", color: COLORS.primary, borderRadius: 4, padding: "1px 8px", fontWeight: 600 }}>今日中 {todayTodos.length}件</span>}
+            {tomorrowTodos.length > 0 && <span style={{ fontSize: 11, background: "rgba(246,173,85,0.15)", color: COLORS.warning, borderRadius: 4, padding: "1px 8px", fontWeight: 600 }}>明日中 {tomorrowTodos.length}件</span>}
           </button>
           {showDeadlines && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {/* 左列：期限超過 */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              {/* 期限超過 */}
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.danger, marginBottom: 8, letterSpacing: 0.5 }}>🔴 期限超過</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -576,14 +571,35 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
                   }
                 </div>
               </div>
-              {/* 右列：1週間以内 */}
+              {/* 今日中 */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.warning, marginBottom: 8, letterSpacing: 0.5 }}>🟡 1週間以内</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.primary, marginBottom: 8, letterSpacing: 0.5 }}>🎯 今日中</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {soonTodos.length === 0
+                  {todayTodos.length === 0
                     ? <div style={{ fontSize: 12, color: COLORS.textLight }}>なし</div>
-                    : soonTodos.map(({ todo, client, project }, i) => {
-                      const diffDays = Math.ceil((new Date(todo.due) - now) / (1000 * 60 * 60 * 24));
+                    : todayTodos.map(({ todo, client, project }, i) => {
+                      const todoIdx = (client.todos || []).indexOf(todo);
+                      return (
+                        <div key={i} style={{ background: COLORS.card, border: "1px solid rgba(229,62,62,0.3)", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                          <div onClick={() => onCompleteTodo(client.id, todoIdx)} style={{ width: 16, height: 16, borderRadius: 3, border: `2px solid ${COLORS.primary}`, flexShrink: 0, cursor: "pointer" }} />
+                          <div onClick={() => onClientClick(client)} style={{ flex: 1, cursor: "pointer", minWidth: 0 }}>
+                            <div style={{ fontSize: 12, color: COLORS.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{todo.text}</div>
+                            <div style={{ fontSize: 10, color: COLORS.textLight }}>{project?.name} › {client.name}</div>
+                          </div>
+                          <span style={{ fontSize: 11, color: COLORS.primary, fontWeight: 600, flexShrink: 0 }}>今日</span>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+              </div>
+              {/* 明日中 */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.warning, marginBottom: 8, letterSpacing: 0.5 }}>🟡 明日中</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {tomorrowTodos.length === 0
+                    ? <div style={{ fontSize: 12, color: COLORS.textLight }}>なし</div>
+                    : tomorrowTodos.map(({ todo, client, project }, i) => {
                       const todoIdx = (client.todos || []).indexOf(todo);
                       return (
                         <div key={i} style={{ background: COLORS.card, border: "1px solid rgba(246,173,85,0.3)", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
@@ -592,7 +608,7 @@ function ProjectList({ projects, clients, onSelect, onArchiveProject, onRestoreP
                             <div style={{ fontSize: 12, color: COLORS.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{todo.text}</div>
                             <div style={{ fontSize: 10, color: COLORS.textLight }}>{project?.name} › {client.name}</div>
                           </div>
-                          <span style={{ fontSize: 11, color: COLORS.warning, fontWeight: 600, flexShrink: 0 }}>{diffDays === 0 ? "今日" : `${diffDays}日後`}</span>
+                          <span style={{ fontSize: 11, color: COLORS.warning, fontWeight: 600, flexShrink: 0 }}>明日</span>
                         </div>
                       );
                     })
